@@ -509,7 +509,13 @@ export const LOGISTICS_PERMISSIONS = {
     viewBalancePreparation: 'logistics.inventory_ledger.view_balance_preparation',
     viewTraceabilityPreparation: 'logistics.inventory_ledger.view_traceability_preparation',
   },
+  // Fase 045 · Saldos de inventario.
+  // `read`, `rebuild` y `rebuildViaLedger` son los códigos que exige el router
+  // real del backend (inventory/balances/.../router.py, commit 337007b).
   inventoryBalances: {
+    read: 'logistics.inventory.read',
+    rebuild: 'logistics.inventory.rebuild',
+    rebuildViaLedger: 'logistics.inventory_ledger.reconcile',
     view: 'logistics.inventory_ledger.read',
     viewAll: 'logistics.inventory_ledger.view_all',
     viewPositions: 'logistics.inventory_ledger.read',
@@ -520,8 +526,6 @@ export const LOGISTICS_PERMISSIONS = {
     viewHistorical: 'logistics.inventory_ledger.read',
     reconcile: 'logistics.inventory_ledger.reconcile',
     reviewReconciliation: 'logistics.inventory_ledger.reconcile',
-    rebuild: 'logistics.inventory_ledger.reconcile',
-    rebuildFull: 'logistics.inventory_ledger.reconcile',
     createCheckpoint: 'logistics.inventory_ledger.create_checkpoint',
     export: 'logistics.inventory_ledger.export',
     validateAvailability: 'logistics.inventory_ledger.read',

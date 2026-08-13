@@ -1,138 +1,341 @@
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '../../../components/common/PageHeader'
-import { MetricCard } from '../../../components/common/MetricCard'
 import { Button } from '../../../components/common/Button'
 import { Alert } from '../../../components/common/Alert'
 import { LoadingSkeleton } from '../../../components/common/LoadingSkeleton'
-import { useQuery } from '../../inbound-docks/hooks/useQuery'
-import { useLogisticsAccess } from '../../logistics-me/hooks/useLogisticsAccess'
+import { LogisticsIcon } from '../../../components/common/LogisticsIcon'
+import type { LogisticsIconName } from '../../../components/common/LogisticsIcon'
 import { useLogisticsPermissions } from '../../logistics-permissions/hooks/useLogisticsPermissions'
+import { useLogisticsContextSelector } from '../../logistics-permissions/hooks/useLogisticsContextSelector'
 import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
-import { getErrorMessage } from '../../../utils/errors'
-import { OverlapWarning } from '../components/OverlapWarning'
-import { BalanceFreshnessBanner } from '../components/BalanceFreshnessBanner'
-import type { InventoryBalanceSummary } from '../types/inventory-balances'
+import { productsCatalogApi } from '../../../api/products-catalog-api'
+import type { Product } from '../../../types/products-catalog'
+import { DecimalDisplay } from '../components/DecimalDisplay'
+import { useBalanceSummary, useRebuildBalances } from '../hooks/useInventoryBalances'
+import { isZeroDecimal } from '../decimal'
+import type {
+  InventoryBalanceMetricKey,
+  RebuildMode,
+} from '../types/inventory-balances'
+
+interface MetricDefinition {
+  key: InventoryBalanceMetricKey
+  label: string
+  icon: LogisticsIconName
+  hint: string
+}
+
+/** Las 8 métricas publicadas por el backend, en el orden del contrato. */
+const METRICS: MetricDefinition[] = [
+  { key: 'physical_on_hand', label: 'Stock físico', icon: 'box', hint: 'Existencias totales en almacén' },
+  { key: 'available_to_promise', label: 'Disponible', icon: 'check', hint: 'Disponible operativo (ATP)' },
+  { key: 'reserved_stock', label: 'Reservado', icon: 'lock', hint: 'Comprometido con pedidos' },
+  { key: 'blocked_stock', label: 'Bloqueado', icon: 'shield', hint: 'Bloqueado operativamente' },
+  { key: 'quarantine_stock', label: 'Cuarentena', icon: 'alert', hint: 'Retenido por calidad' },
+  { key: 'in_transit_stock', label: 'En tránsito', icon: 'truck', hint: 'En movimiento entre almacenes o compras' },
+  { key: 'damaged_stock', label: 'Dañado', icon: 'x', hint: 'Registrado como dañado' },
+  { key: 'expired_stock', label: 'Vencido', icon: 'clock', hint: 'Fuera de fecha de caducidad' },
+]
+
+const REBUILD_MODE_LABELS: Record<RebuildMode, string> = {
+  FULL: 'Completo',
+  TOTAL: 'Total',
+  PARTIAL_WAREHOUSE: 'Parcial por almacén',
+  PARTIAL_PRODUCT: 'Parcial por producto',
+}
 
 export function InventoryStockDashboardPage() {
-  const navigate = useNavigate()
-  const { currentContext } = useLogisticsAccess()
-  const { hasPermission } = useLogisticsPermissions()
-  const canView = hasPermission(LOGISTICS_PERMISSIONS.inventoryLedger.view)
-  const organizationId = currentContext?.organization_id
+  const { hasPermission, hasAnyPermission, requiresStepUp, isLoading: permissionsLoading } =
+    useLogisticsPermissions()
+  const { context, options, selectContext } = useLogisticsContextSelector()
 
-  const summary = useQuery<InventoryBalanceSummary>(
-    ['inventory-balances', 'dashboard', organizationId ?? ''],
-    '/logistics/inventory/balances/summary',
-    organizationId ? { organization_id: organizationId } : undefined,
-    { enabled: canView && Boolean(organizationId) },
+  const organizationId = context.organization_id
+  const [warehouseId, setWarehouseId] = useState<string>('')
+  const [productId, setProductId] = useState<string>('')
+  const [products, setProducts] = useState<Product[]>([])
+  const [confirmingRebuild, setConfirmingRebuild] = useState(false)
+  const [rebuildMode, setRebuildMode] = useState<RebuildMode>('FULL')
+
+  const canRead = hasPermission(LOGISTICS_PERMISSIONS.inventoryBalances.read)
+  const canRebuild = hasAnyPermission([
+    LOGISTICS_PERMISSIONS.inventoryBalances.rebuild,
+    LOGISTICS_PERMISSIONS.inventoryBalances.rebuildViaLedger,
+  ])
+
+  // Al cambiar de organización los filtros del tenant anterior dejan de aplicar.
+  useEffect(() => {
+    setWarehouseId('')
+    setProductId('')
+  }, [organizationId])
+
+  // Catálogo real de productos; nunca se pide un UUID a mano.
+  useEffect(() => {
+    if (!canRead) return
+    let cancelled = false
+    productsCatalogApi
+      .list({ page: 1, page_size: 100 })
+      .then((response) => {
+        if (!cancelled) setProducts(response.items ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setProducts([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [canRead, organizationId])
+
+  const summary = useBalanceSummary({
+    organizationId: canRead ? organizationId : null,
+    warehouseId: warehouseId || null,
+    productId: productId || null,
+  })
+
+  const rebuild = useRebuildBalances(() => {
+    setConfirmingRebuild(false)
+    void summary.refetch()
+  })
+
+  const allZero = useMemo(
+    () => (summary.data ? METRICS.every((m) => isZeroDecimal(summary.data![m.key])) : false),
+    [summary.data],
   )
 
-  if (!canView) {
+  if (permissionsLoading) {
+    return <LoadingSkeleton rows={4} />
+  }
+
+  if (!canRead) {
     return (
       <div className="space-y-4">
-        <PageHeader title="Saldos de inventario" />
-        <Alert variant="error">No tienes permisos para ver los saldos de inventario.</Alert>
+        <PageHeader eyebrow="Fase 045" title="Saldos de inventario" />
+        <Alert variant="error">
+          No tienes el permiso <code>logistics.inventory.read</code> necesario para consultar los
+          saldos de inventario.
+        </Alert>
       </div>
     )
   }
 
-  if (!organizationId) {
-    return (
-      <div className="space-y-6 pb-10">
-        <PageHeader
-          eyebrow="Fase 045"
-          title="Saldos de inventario"
-          description="Consulta técnica de saldos derivados del libro de movimientos."
-        />
-        <Alert variant="info">Selecciona una organización para consultar sus saldos de inventario.</Alert>
-      </div>
-    )
-  }
+  const stepUpRequired =
+    requiresStepUp(LOGISTICS_PERMISSIONS.inventoryBalances.rebuild) ||
+    requiresStepUp(LOGISTICS_PERMISSIONS.inventoryBalances.rebuildViaLedger)
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="space-y-5 pb-8">
       <PageHeader
         eyebrow="Fase 045"
         title="Saldos de inventario"
-        description="Consulta técnica de saldos derivados del libro de movimientos."
+        description="Proyección consolidada del libro de movimientos. Es una lectura calculada: no se editan cantidades desde aquí."
         actions={
-          <div className="flex gap-2">
-            <Button onClick={() => navigate('/logistics/inventory/stock/products')}>
-              Por producto
+          <div className="flex items-center gap-2">
+            <Button
+              size="small"
+              variant="ghost"
+              onClick={() => void summary.refetch()}
+              disabled={summary.isFetching}
+            >
+              {summary.isFetching ? 'Actualizando…' : 'Actualizar'}
             </Button>
-            <Button variant="secondary" onClick={() => navigate('/logistics/inventory/stock/warehouses')}>
-              Por almacén
-            </Button>
-            <Button variant="secondary" onClick={() => navigate('/logistics/inventory/stock')}>
-              Listado completo
-            </Button>
+            {canRebuild && (
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={() => setConfirmingRebuild(true)}
+                disabled={!organizationId || rebuild.isPending}
+              >
+                Reconstruir saldos
+              </Button>
+            )}
           </div>
         }
       />
 
-      <OverlapWarning />
+      {/* ── Filtros ─────────────────────────────────────────────────────── */}
+      <section
+        aria-label="Filtros de saldos"
+        className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-3"
+      >
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-slate-700">Organización</span>
+          <select
+            value={organizationId ?? ''}
+            onChange={(event) => void selectContext({ organization_id: event.target.value || null })}
+            className="min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
+          >
+            <option value="">Selecciona una organización</option>
+            {options.organizations.map((organization) => (
+              <option key={organization.id} value={organization.id}>
+                {organization.label}
+              </option>
+            ))}
+          </select>
+        </label>
 
-      {summary.isLoading && <LoadingSkeleton rows={6} />}
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-slate-700">Almacén (opcional)</span>
+          <select
+            value={warehouseId}
+            onChange={(event) => setWarehouseId(event.target.value)}
+            className="min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
+          >
+            <option value="">Todos los almacenes</option>
+            {options.warehouses.map((warehouse) => (
+              <option key={warehouse.id} value={warehouse.id}>
+                {warehouse.label}
+              </option>
+            ))}
+          </select>
+        </label>
 
-      {summary.isError && (
-        <Alert variant="error">{getErrorMessage(summary.error)}</Alert>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-slate-700">Producto (opcional)</span>
+          <select
+            value={productId}
+            onChange={(event) => setProductId(event.target.value)}
+            className="min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
+          >
+            <option value="">Todos los productos</option>
+            {products.map((product) => (
+              <option key={product.id} value={product.id}>
+                {product.sku} · {product.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
+
+      {/* ── Estados ─────────────────────────────────────────────────────── */}
+      {!organizationId && (
+        <Alert variant="info">
+          Selecciona una organización para consultar sus saldos.
+        </Alert>
       )}
 
-      {summary.data && (
+      {organizationId && summary.isLoading && <LoadingSkeleton rows={4} />}
+
+      {organizationId && summary.isError && (
+        <Alert variant="error">
+          {summary.status === 403
+            ? 'No tienes acceso a los saldos de esta organización.'
+            : summary.error ?? 'No se pudieron cargar los saldos.'}
+        </Alert>
+      )}
+
+      {organizationId && !summary.isLoading && !summary.isError && summary.data && (
         <>
-          {summary.data.freshness_state !== 'CURRENT' && summary.data.freshness_state !== 'NEAR_REAL_TIME' && (
-            <Alert variant="warning">
-              La proyección de saldos tiene {summary.data.projection_lag_movements.toLocaleString('es-PE')} movimientos de retraso.
-              Los datos pueden no reflejar el estado actual.
+          {allZero && (
+            <Alert variant="info">
+              La organización no registra saldos para los filtros seleccionados.
             </Alert>
           )}
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-            <MetricCard
-              label="Productos con físico"
-              value={summary.data.total_products}
-              detail={`${summary.data.total_positions} posiciones`}
-              icon="box"
-              tone="primary"
-            />
-            <MetricCard
-              label="Almacenes"
-              value={summary.data.total_warehouses}
-              detail={`${summary.data.total_locations} ubicaciones`}
-              icon="dock"
-              tone="neutral"
-            />
-            {summary.data.metrics.map((m) => (
-              <MetricCard
-                key={m.metric_code}
-                label={m.label}
-                value={m.count_products}
-                detail={`${m.count_positions} posiciones`}
-                icon={m.metric_code === 'PHYSICAL' ? 'box' : m.metric_code === 'AVAILABLE' ? 'check-square' : m.metric_code === 'RESERVED' ? 'clipboard' : m.metric_code === 'BLOCKED' ? 'lock' : m.metric_code === 'QUARANTINE' ? 'shield' : m.metric_code === 'TRANSIT' ? 'route' : m.metric_code === 'DAMAGED' ? 'alert' : m.metric_code === 'EXPIRED' ? 'timeline' : 'list'}
-                tone={m.metric_code === 'PHYSICAL' ? 'primary' : m.metric_code === 'AVAILABLE' ? 'success' : m.metric_code === 'RESERVED' ? 'warning' : m.metric_code === 'BLOCKED' ? 'danger' : 'neutral'}
-              />
+          <section
+            aria-label="Métricas de saldo"
+            className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+          >
+            {METRICS.map((metric) => (
+              <article
+                key={metric.key}
+                data-testid={`metric-${metric.key}`}
+                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+              >
+                <div className="flex items-center gap-2 text-slate-500">
+                  <LogisticsIcon name={metric.icon} size={15} aria-hidden="true" />
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.12em]">
+                    {metric.label}
+                  </h3>
+                </div>
+                <p className="mt-2 text-xl font-bold text-slate-900">
+                  <DecimalDisplay value={summary.data![metric.key]} />
+                </p>
+                <p className="mt-1 text-[11px] leading-4 text-slate-400">{metric.hint}</p>
+              </article>
             ))}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="bg-white border border-[#DDE4E8] rounded-[10px] p-4">
-              <h3 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Secuencia</h3>
-              <p className="text-sm text-ink">
-                Último MOV: <span className="font-medium">{summary.data.latest_movement_sequence?.toLocaleString('es-PE') ?? '—'}</span>
-              </p>
-              <p className="text-sm text-ink">
-                Balance: <span className="font-medium">{summary.data.balance_sequence?.toLocaleString('es-PE') ?? '—'}</span>
-              </p>
-            </div>
-            <div className="bg-white border border-[#DDE4E8] rounded-[10px] p-4">
-              <h3 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Calidad</h3>
-              <p className="text-sm text-ink">{summary.data.data_quality}</p>
-              <p className="text-xs text-muted">
-                Corte: {new Date(summary.data.as_of).toLocaleString('es-PE')}
-              </p>
-            </div>
-          </div>
+          </section>
         </>
+      )}
+
+      {/* ── Confirmación de rebuild ─────────────────────────────────────── */}
+      {confirmingRebuild && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirmar reconstrucción de saldos"
+        >
+          <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">Reconstruir saldos</h2>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Se relanzará el replay del libro de movimientos para recalcular la proyección de
+                saldos de la organización seleccionada. La operación queda auditada.
+              </p>
+            </div>
+
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-slate-700">Modo</span>
+              <select
+                value={rebuildMode}
+                onChange={(event) => setRebuildMode(event.target.value as RebuildMode)}
+                className="min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs"
+              >
+                {(Object.keys(REBUILD_MODE_LABELS) as RebuildMode[]).map((mode) => (
+                  <option key={mode} value={mode}>
+                    {REBUILD_MODE_LABELS[mode]}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {stepUpRequired && (
+              <Alert variant="warning">
+                Esta acción exige reverificación de identidad. Si el servidor la rechaza, reverifica
+                tu sesión desde el aviso superior y vuelve a intentarlo.
+              </Alert>
+            )}
+
+            {rebuild.error && <Alert variant="error">{rebuild.error}</Alert>}
+
+            <div className="flex justify-end gap-2">
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={() => {
+                  rebuild.reset()
+                  setConfirmingRebuild(false)
+                }}
+                disabled={rebuild.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="small"
+                isLoading={rebuild.isPending}
+                disabled={rebuild.isPending || !organizationId}
+                onClick={() => {
+                  if (!organizationId) return
+                  void rebuild.requestRebuild({
+                    organization_id: organizationId,
+                    rebuild_mode: rebuildMode,
+                    target_warehouse_id: rebuildMode === 'PARTIAL_WAREHOUSE' ? warehouseId || null : null,
+                    target_product_id: rebuildMode === 'PARTIAL_PRODUCT' ? productId || null : null,
+                  })
+                }}
+              >
+                Confirmar reconstrucción
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rebuild.job && !confirmingRebuild && (
+        <Alert variant="success">
+          Reconstrucción encolada ({rebuild.job.status}): {rebuild.job.positions_processed} posiciones
+          procesadas, {rebuild.job.movements_replayed} movimientos reprocesados,{' '}
+          {rebuild.job.differences_count} diferencias.
+        </Alert>
       )}
     </div>
   )

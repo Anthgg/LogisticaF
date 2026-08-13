@@ -300,13 +300,15 @@ describe('rutas del navbar', () => {
   })
 
   it('la ruta canónica de almacenes es /logistics/warehouses y la antigua redirige', () => {
-    expect(ROUTER_SOURCE).toContain(
-      '<Route\n              path="/warehouses"\n              element={<Navigate to="/logistics/warehouses" replace />}',
+    // La ruta legacy sobrevive solo como redirect de compatibilidad.
+    expect(ROUTER_SOURCE).toMatch(
+      /path="\/warehouses"\s*\n?\s*element=\{<Navigate to="\/logistics\/warehouses" replace \/>\}/,
     )
     expect(
       ALL_NAVIGATION_MODULES.find((module) => module.id === 'warehouses')?.route,
     ).toBe('/logistics/warehouses')
     expect(ROUTE_BY_PATH.has('/logistics/warehouses')).toBe(true)
+    expect(ROUTE_BY_PATH.has('/warehouses')).toBe(true)
   })
 
   it('/logistics/evidence sigue redirigiendo a archivos y no tiene botón propio', () => {

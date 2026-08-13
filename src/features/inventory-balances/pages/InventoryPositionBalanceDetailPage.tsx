@@ -1,150 +1,146 @@
-import { useParams, useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { PageHeader } from '../../../components/common/PageHeader'
+import { Button } from '../../../components/common/Button'
 import { Alert } from '../../../components/common/Alert'
 import { LoadingSkeleton } from '../../../components/common/LoadingSkeleton'
-import { Button } from '../../../components/common/Button'
-import { useQuery } from '../../inbound-docks/hooks/useQuery'
-import { useLogisticsAccess } from '../../logistics-me/hooks/useLogisticsAccess'
 import { useLogisticsPermissions } from '../../logistics-permissions/hooks/useLogisticsPermissions'
 import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
-import { getErrorMessage } from '../../../utils/errors'
 import { DecimalDisplay } from '../components/DecimalDisplay'
 import { DataQualityBadge } from '../components/DataQualityBadge'
+import { usePositionBalance } from '../hooks/useInventoryBalances'
 import type { InventoryPositionBalance } from '../types/inventory-balances'
 
-export function InventoryPositionBalanceDetailPage() {
-  const { positionId } = useParams<{ positionId: string }>()
-  const navigate = useNavigate()
-  const { currentContext } = useLogisticsAccess()
-  const { hasPermission } = useLogisticsPermissions()
-  const canView = hasPermission(LOGISTICS_PERMISSIONS.inventoryLedger.view)
-  const organizationId = currentContext?.organization_id
-
-  const position = useQuery<InventoryPositionBalance>(
-    ['inventory-balances', 'position', positionId ?? ''],
-    `/logistics/inventory/balances/positions/${positionId}`,
-    organizationId ? { organization_id: organizationId } : undefined,
-    { enabled: canView && Boolean(organizationId) && Boolean(positionId) },
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+        {label}
+      </dt>
+      <dd className="mt-0.5 truncate text-xs text-slate-800">{children}</dd>
+    </div>
   )
+}
 
-  if (!canView) {
+const STATE_FIELDS: Array<{ key: keyof InventoryPositionBalance; label: string }> = [
+  { key: 'availability_state', label: 'Disponibilidad' },
+  { key: 'quality_state', label: 'Calidad' },
+  { key: 'transit_state', label: 'Tránsito' },
+  { key: 'damage_state', label: 'Daño' },
+  { key: 'expiration_state', label: 'Vencimiento' },
+]
+
+/**
+ * Detalle de una posición de inventario.
+ *
+ * `positionId` es el `InventoryPosition.id`, no la PK de la fila de saldo:
+ * el backend filtra por `inventory_position_id`.
+ */
+export function InventoryPositionBalanceDetailPage() {
+  const navigate = useNavigate()
+  const { positionId } = useParams<{ positionId: string }>()
+  const { hasPermission, isLoading: permissionsLoading } = useLogisticsPermissions()
+
+  const canRead = hasPermission(LOGISTICS_PERMISSIONS.inventoryBalances.read)
+  const query = usePositionBalance(canRead && positionId ? positionId : null)
+
+  if (permissionsLoading) return <LoadingSkeleton rows={3} />
+
+  if (!canRead) {
     return (
       <div className="space-y-4">
-        <PageHeader title="Detalle de posición" />
-        <Alert variant="error">No tienes permisos para ver los saldos de inventario.</Alert>
+        <PageHeader eyebrow="Fase 045" title="Saldo de posición" />
+        <Alert variant="error">
+          No tienes el permiso <code>logistics.inventory.read</code> necesario para consultar esta
+          posición.
+        </Alert>
       </div>
     )
   }
 
-  if (position.isLoading) return <LoadingSkeleton rows={8} />
-  if (position.isError) return <Alert variant="error">{getErrorMessage(position.error)}</Alert>
-  if (!position.data) return <Alert variant="info">Posición no encontrada.</Alert>
-
-  const p = position.data
-
   return (
-    <div className="space-y-6 pb-10">
+    <div className="space-y-5 pb-8">
       <PageHeader
         eyebrow="Fase 045"
-        title={`Posición ${p.position_id_display}`}
-        description={`${p.product.name} · ${p.warehouse.name}`}
+        title="Saldo de posición"
+        description="Saldo atómico proyectado para una posición de inventario."
         actions={
-          <div className="flex gap-2">
-            <Button onClick={() => navigate(`/logistics/inventory/ledger/movements?position_id=${p.position_id}`)}>
-              Ver movimientos
-            </Button>
-            <Button variant="secondary" onClick={() => navigate(-1)}>Volver</Button>
-          </div>
+          <Button
+            size="small"
+            variant="ghost"
+            onClick={() => navigate('/logistics/inventory/stock')}
+          >
+            ← Volver a saldos
+          </Button>
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {[
-          { label: 'Físico', value: p.physical },
-          { label: 'Disponible', value: p.available },
-          { label: 'Reservado', value: p.reserved },
-          { label: 'Bloqueado', value: p.blocked },
-          { label: 'Cuarentena', value: p.quarantine },
-        ].map((item) => (
-          <div key={item.label} className="bg-white border border-[#DDE4E8] rounded-[10px] p-3">
-            <div className="text-[10px] text-muted uppercase tracking-wide">{item.label}</div>
-            <div className="text-lg font-bold text-ink"><DecimalDisplay value={item.value} /></div>
-            <div className="text-[10px] text-muted">{p.unit.code}</div>
-          </div>
-        ))}
-      </div>
+      {query.isLoading && <LoadingSkeleton rows={3} />}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        {[
-          { label: 'Tránsito', value: p.transit },
-          { label: 'Dañado', value: p.damaged },
-          { label: 'Vencido', value: p.expired },
-          { label: 'Pendiente putaway', value: p.pending_putaway },
-          { label: 'Rechazado', value: p.rejected },
-        ].map((item) => (
-          <div key={item.label} className="bg-white border border-[#DDE4E8] rounded-[10px] p-3">
-            <div className="text-[10px] text-muted uppercase tracking-wide">{item.label}</div>
-            <div className="text-lg font-bold text-ink"><DecimalDisplay value={item.value} /></div>
-          </div>
-        ))}
-      </div>
+      {query.isError && (
+        <Alert variant="error">
+          {query.status === 404
+            ? 'La posición solicitada no tiene un saldo proyectado activo.'
+            : query.status === 403
+              ? 'No tienes acceso a la organización propietaria de esta posición.'
+              : query.error ?? 'No se pudo cargar el saldo de la posición.'}
+        </Alert>
+      )}
 
-      <div className="space-y-3 text-xs">
-        <section className="bg-white border border-[#DDE4E8] rounded-[10px] p-4">
-          <h3 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Identidad</h3>
-          <div className="grid grid-cols-2 gap-2">
-            <div>Position ID: <span className="font-medium text-ink font-mono">{p.position_id}</span></div>
-            <div>Key parcial: <span className="font-mono text-muted">{p.dimension_key_partial}</span></div>
-            <div>Producto: <span className="font-medium text-ink">{p.product.name}</span></div>
-            <div>SKU: <span className="text-ink">{p.product.sku}</span></div>
-            <div>Almacén: <span className="font-medium text-ink">{p.warehouse.name}</span></div>
-            <div>Ubicación: <span className="text-ink">{p.location?.code ?? '—'}</span></div>
-          </div>
-        </section>
-
-        <section className="bg-white border border-[#DDE4E8] rounded-[10px] p-4">
-          <h3 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Secuencia e integridad</h3>
-          <div className="grid grid-cols-2 gap-2">
-            <div>Secuencia MOV: <span className="font-medium text-ink">{p.ledger_sequence?.toLocaleString('es-PE') ?? '—'}</span></div>
-            <div>Secuencia balance: <span className="font-medium text-ink">{p.balance_sequence?.toLocaleString('es-PE') ?? '—'}</span></div>
-            <div>Lag: <span className="text-ink">{p.projection_lag_movements} movimientos</span></div>
-            <div>Hash: <span className="font-mono text-muted break-all">{p.hash_partial ?? '—'}</span></div>
-          </div>
-        </section>
-
-        <section className="bg-white border border-[#DDE4E8] rounded-[10px] p-4">
-          <h3 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Estados</h3>
-          <div className="grid grid-cols-2 gap-2">
-            <div>Disponibilidad: <span className="text-ink">{p.availability_state}</span></div>
-            <div>Calidad: <span className="text-ink">{p.quality_state}</span></div>
-            <div>Tránsito: <span className="text-ink">{p.transit_state}</span></div>
-            <div>Daño: <span className="text-ink">{p.damage_state}</span></div>
-            <div>Vencimiento: <span className="text-ink">{p.expiration_state}</span></div>
-            <div>Propiedad: <span className="text-ink">{p.ownership ?? '—'}</span></div>
-          </div>
-          <div className="mt-2"><DataQualityBadge status={p.data_quality} /></div>
-        </section>
-
-        <section className="bg-white border border-[#DDE4E8] rounded-[10px] p-4">
-          <h3 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Reconciliación</h3>
-          <p>Estado: {p.reconciliation_status ?? '—'}</p>
-          {p.tracking_reference_partial && (
-            <p className="mt-1">Tracking: <span className="font-mono text-muted">{p.tracking_reference_partial}</span></p>
-          )}
-        </section>
-
-        {p.last_movement && (
-          <section className="bg-white border border-[#DDE4E8] rounded-[10px] p-4">
-            <h3 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Último movimiento</h3>
-            <div className="grid grid-cols-2 gap-2">
-              <div>Código: <span className="font-medium text-ink">{p.last_movement.movement_code}</span></div>
-              <div>Tipo: <span className="text-ink">{p.last_movement.movement_type}</span></div>
-              <div>Fecha: <span className="text-ink">{new Date(p.last_movement.occurred_at).toLocaleString('es-PE')}</span></div>
-              <div>Secuencia: <span className="text-ink">{p.last_movement.ledger_sequence}</span></div>
+      {!query.isLoading && !query.isError && query.data && (
+        <>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  Cantidad proyectada
+                </p>
+                <p className="mt-1 text-3xl font-bold text-slate-900">
+                  <DecimalDisplay value={query.data.quantity} maximumFractionDigits={6} />
+                </p>
+              </div>
+              <div className="flex flex-col items-end gap-1.5">
+                <DataQualityBadge status={query.data.data_quality_status} />
+                <span className="text-[11px] text-slate-400">
+                  Conciliación: {query.data.reconciliation_status}
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  Secuencia aplicada: {query.data.last_applied_ledger_sequence}
+                </span>
+              </div>
             </div>
           </section>
-        )}
-      </div>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Estados</h2>
+            <dl className="mt-3 grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
+              {STATE_FIELDS.map((field) => (
+                <Field key={field.key} label={field.label}>
+                  {String(query.data![field.key] ?? '—')}
+                </Field>
+              ))}
+            </dl>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+              Identificadores
+            </h2>
+            <dl className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Field label="Posición">{query.data.inventory_position_id}</Field>
+              <Field label="Producto">{query.data.product_id}</Field>
+              <Field label="Unidad base">{query.data.base_unit_id}</Field>
+              <Field label="Organización">{query.data.organization_id}</Field>
+              <Field label="Sede">{query.data.branch_id}</Field>
+              <Field label="Almacén">{query.data.warehouse_id ?? '—'}</Field>
+              <Field label="Ubicación">{query.data.warehouse_location_id ?? '—'}</Field>
+              <Field label="Clave de dimensión">{query.data.dimension_key}</Field>
+              <Field label="Calculado">
+                {new Date(query.data.calculated_at).toLocaleString('es-PE')}
+              </Field>
+            </dl>
+          </section>
+        </>
+      )}
     </div>
   )
 }

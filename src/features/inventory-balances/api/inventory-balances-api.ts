@@ -1,206 +1,124 @@
 import { apiRequest } from '../../../api/api-client'
+import { toDecimalString } from '../decimal'
 import type {
   InventoryBalanceSummary,
+  InventoryBalanceSummaryFilters,
   InventoryPositionBalance,
-  InventoryProductBalance,
-  InventoryWarehouseBalance,
-  InventoryLocationBalance,
-  InventoryBalanceAsOfRequest,
-  InventoryBalanceAsOfResponse,
-  InventoryBalanceFilters,
-  PaginatedResponse,
+  RebuildJobCreate,
+  RebuildJobRead,
 } from '../types/inventory-balances'
 
-function buildQuery(params: Record<string, unknown>): string {
+/**
+ * Cliente de Fase 045 · Saldos de inventario.
+ *
+ * El backend (commit 337007b) publica EXACTAMENTE tres operaciones bajo
+ * `/logistics/inventory/balances`. No se añade ninguna otra: cualquier método
+ * extra sería un endpoint inventado que respondería 404 en runtime.
+ *
+ *   GET  /summary?organization_id=&warehouse_id=&product_id=
+ *   GET  /positions/{position_id}
+ *   POST /rebuild                      (CSRF + Step-Up opcional)
+ *
+ * Usa `apiRequest`, que ya resuelve cookies (`credentials: 'include'`),
+ * refresh de sesión, CSRF y normalización de errores.
+ */
+
+export const BALANCES_BASE_PATH = '/logistics/inventory/balances'
+const BASE = BALANCES_BASE_PATH
+
+const SUMMARY_METRICS = [
+  'physical_on_hand',
+  'available_to_promise',
+  'reserved_stock',
+  'blocked_stock',
+  'quarantine_stock',
+  'in_transit_stock',
+  'damaged_stock',
+  'expired_stock',
+] as const
+
+function buildQuery(params: Record<string, string | null | undefined>): string {
   const search = new URLSearchParams()
   for (const [key, value] of Object.entries(params)) {
     if (value == null || value === '') continue
-    if (value instanceof Date) {
-      search.set(key, value.toISOString())
-    } else if (Array.isArray(value)) {
-      search.set(key, value.join(','))
-    } else if (typeof value === 'boolean') {
-      search.set(key, String(value))
-    } else {
-      search.set(key, String(value))
-    }
+    search.set(key, value)
   }
   const qs = search.toString()
   return qs ? `?${qs}` : ''
 }
 
+/**
+ * Pydantic v2 serializa `Decimal` como string, así que el valor llega intacto.
+ * Aun así se normaliza defensivamente sin `Number()` por si el serializador
+ * cambiara a número: convertir aquí sería perder dígitos de forma silenciosa.
+ */
+export function normalizeSummary(payload: unknown): InventoryBalanceSummary {
+  const raw = (payload ?? {}) as Record<string, unknown>
+  const summary = {} as InventoryBalanceSummary
+  for (const metric of SUMMARY_METRICS) {
+    summary[metric] = toDecimalString(raw[metric])
+  }
+  return summary
+}
+
+export function normalizePositionBalance(payload: unknown): InventoryPositionBalance {
+  const raw = (payload ?? {}) as InventoryPositionBalance
+  return { ...raw, quantity: toDecimalString(raw.quantity) }
+}
+
 export const inventoryBalancesApi = {
-  async getSummary(organizationId: string): Promise<InventoryBalanceSummary> {
-    return apiRequest<InventoryBalanceSummary>({
-      path: `/logistics/inventory/balances/summary${buildQuery({ organization_id: organizationId })}`,
+  /** GET /logistics/inventory/balances/summary */
+  async getSummary(
+    filters: InventoryBalanceSummaryFilters,
+    signal?: AbortSignal,
+  ): Promise<InventoryBalanceSummary> {
+    const payload = await apiRequest<unknown>({
+      path: `${BASE}/summary${buildQuery({
+        organization_id: filters.organization_id,
+        warehouse_id: filters.warehouse_id,
+        product_id: filters.product_id,
+      })}`,
       method: 'GET',
+      signal,
     })
+    return normalizeSummary(payload)
   },
 
-  async listBalances(
-    filters: InventoryBalanceFilters,
-  ): Promise<PaginatedResponse<InventoryPositionBalance>> {
-    return apiRequest<PaginatedResponse<InventoryPositionBalance>>({
-      path: `/logistics/inventory/balances${buildQuery(filters as Record<string, unknown>)}`,
-      method: 'GET',
-    })
-  },
-
-  async listProductBalances(
-    filters: InventoryBalanceFilters,
-  ): Promise<PaginatedResponse<InventoryProductBalance>> {
-    return apiRequest<PaginatedResponse<InventoryProductBalance>>({
-      path: `/logistics/inventory/balances/products${buildQuery(filters as Record<string, unknown>)}`,
-      method: 'GET',
-    })
-  },
-
-  async getProductBalance(
-    productId: string,
-    filters?: InventoryBalanceFilters,
-  ): Promise<InventoryProductBalance> {
-    return apiRequest<InventoryProductBalance>({
-      path: `/logistics/inventory/balances/products/${productId}${buildQuery((filters ?? {}) as Record<string, unknown>)}`,
-      method: 'GET',
-    })
-  },
-
-  async listWarehouseBalances(
-    filters: InventoryBalanceFilters,
-  ): Promise<PaginatedResponse<InventoryWarehouseBalance>> {
-    return apiRequest<PaginatedResponse<InventoryWarehouseBalance>>({
-      path: `/logistics/inventory/balances/warehouses${buildQuery(filters as Record<string, unknown>)}`,
-      method: 'GET',
-    })
-  },
-
-  async getWarehouseBalance(
-    warehouseId: string,
-    filters?: InventoryBalanceFilters,
-  ): Promise<InventoryWarehouseBalance> {
-    return apiRequest<InventoryWarehouseBalance>({
-      path: `/logistics/inventory/balances/warehouses/${warehouseId}${buildQuery((filters ?? {}) as Record<string, unknown>)}`,
-      method: 'GET',
-    })
-  },
-
-  async listLocationBalances(
-    filters: InventoryBalanceFilters,
-  ): Promise<PaginatedResponse<InventoryLocationBalance>> {
-    return apiRequest<PaginatedResponse<InventoryLocationBalance>>({
-      path: `/logistics/inventory/balances/locations${buildQuery(filters as Record<string, unknown>)}`,
-      method: 'GET',
-    })
-  },
-
-  async getLocationBalance(
-    locationId: string,
-    filters?: InventoryBalanceFilters,
-  ): Promise<InventoryLocationBalance> {
-    return apiRequest<InventoryLocationBalance>({
-      path: `/logistics/inventory/balances/locations/${locationId}${buildQuery((filters ?? {}) as Record<string, unknown>)}`,
-      method: 'GET',
-    })
-  },
-
+  /** GET /logistics/inventory/balances/positions/{position_id} */
   async getPositionBalance(
     positionId: string,
+    signal?: AbortSignal,
   ): Promise<InventoryPositionBalance> {
-    return apiRequest<InventoryPositionBalance>({
-      path: `/logistics/inventory/balances/positions/${positionId}`,
+    const payload = await apiRequest<unknown>({
+      path: `${BASE}/positions/${encodeURIComponent(positionId)}`,
       method: 'GET',
+      signal,
     })
+    return normalizePositionBalance(payload)
   },
 
-  async getBalanceAsOf(
-    request: InventoryBalanceAsOfRequest,
-  ): Promise<InventoryBalanceAsOfResponse> {
-    return apiRequest<InventoryBalanceAsOfResponse>({
-      path: `/logistics/inventory/balances/as-of`,
+  /**
+   * POST /logistics/inventory/balances/rebuild
+   *
+   * Responde 202. El backend exige CSRF y acepta `X-Step-Up-Proof-ID` cuando
+   * el permiso de rebuild está marcado como step-up para el usuario.
+   */
+  async requestRebuild(
+    payload: RebuildJobCreate,
+    options: { stepUpProofId?: string | null; signal?: AbortSignal } = {},
+  ): Promise<RebuildJobRead> {
+    const headers: Record<string, string> = {}
+    if (options.stepUpProofId) {
+      headers['X-Step-Up-Proof-ID'] = options.stepUpProofId
+    }
+
+    return apiRequest<RebuildJobRead>({
+      path: `${BASE}/rebuild`,
       method: 'POST',
-      body: request,
+      body: payload,
+      headers,
       requiresCsrf: true,
-    })
-  },
-
-  async getPhysicalBalance(
-    filters: InventoryBalanceFilters,
-  ): Promise<PaginatedResponse<InventoryPositionBalance>> {
-    return apiRequest<PaginatedResponse<InventoryPositionBalance>>({
-      path: `/logistics/inventory/balances/physical${buildQuery(filters as Record<string, unknown>)}`,
-      method: 'GET',
-    })
-  },
-
-  async getAvailableBalance(
-    filters: InventoryBalanceFilters,
-  ): Promise<PaginatedResponse<InventoryPositionBalance>> {
-    return apiRequest<PaginatedResponse<InventoryPositionBalance>>({
-      path: `/logistics/inventory/balances/available${buildQuery(filters as Record<string, unknown>)}`,
-      method: 'GET',
-    })
-  },
-
-  async getReservedBalance(
-    filters: InventoryBalanceFilters,
-  ): Promise<PaginatedResponse<InventoryPositionBalance>> {
-    return apiRequest<PaginatedResponse<InventoryPositionBalance>>({
-      path: `/logistics/inventory/balances/reserved${buildQuery(filters as Record<string, unknown>)}`,
-      method: 'GET',
-    })
-  },
-
-  async getBlockedBalance(
-    filters: InventoryBalanceFilters,
-  ): Promise<PaginatedResponse<InventoryPositionBalance>> {
-    return apiRequest<PaginatedResponse<InventoryPositionBalance>>({
-      path: `/logistics/inventory/balances/blocked${buildQuery(filters as Record<string, unknown>)}`,
-      method: 'GET',
-    })
-  },
-
-  async getQuarantineBalance(
-    filters: InventoryBalanceFilters,
-  ): Promise<PaginatedResponse<InventoryPositionBalance>> {
-    return apiRequest<PaginatedResponse<InventoryPositionBalance>>({
-      path: `/logistics/inventory/balances/quarantine${buildQuery(filters as Record<string, unknown>)}`,
-      method: 'GET',
-    })
-  },
-
-  async getTransitBalance(
-    filters: InventoryBalanceFilters,
-  ): Promise<PaginatedResponse<InventoryPositionBalance>> {
-    return apiRequest<PaginatedResponse<InventoryPositionBalance>>({
-      path: `/logistics/inventory/balances/transit${buildQuery(filters as Record<string, unknown>)}`,
-      method: 'GET',
-    })
-  },
-
-  async getDamagedBalance(
-    filters: InventoryBalanceFilters,
-  ): Promise<PaginatedResponse<InventoryPositionBalance>> {
-    return apiRequest<PaginatedResponse<InventoryPositionBalance>>({
-      path: `/logistics/inventory/balances/damaged${buildQuery(filters as Record<string, unknown>)}`,
-      method: 'GET',
-    })
-  },
-
-  async getExpiredBalance(
-    filters: InventoryBalanceFilters,
-  ): Promise<PaginatedResponse<InventoryPositionBalance>> {
-    return apiRequest<PaginatedResponse<InventoryPositionBalance>>({
-      path: `/logistics/inventory/balances/expired${buildQuery(filters as Record<string, unknown>)}`,
-      method: 'GET',
-    })
-  },
-
-  async getPendingPutawayBalance(
-    filters: InventoryBalanceFilters,
-  ): Promise<PaginatedResponse<InventoryPositionBalance>> {
-    return apiRequest<PaginatedResponse<InventoryPositionBalance>>({
-      path: `/logistics/inventory/balances/pending-putaway${buildQuery(filters as Record<string, unknown>)}`,
-      method: 'GET',
+      signal: options.signal,
     })
   },
 }

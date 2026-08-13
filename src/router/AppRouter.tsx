@@ -107,24 +107,7 @@ import { PutawayHistoryPage } from '../features/putaway/pages/PutawayHistoryPage
 import { PutawayIntegrityPage } from '../features/putaway/pages/PutawayIntegrityPage'
 import { PutawayMobileWorkspacePage } from '../features/putaway/pages/PutawayMobileWorkspacePage'
 import { InventoryStockDashboardPage } from '../features/inventory-balances/pages/InventoryStockDashboardPage'
-import { InventoryBalancesPage } from '../features/inventory-balances/pages/InventoryBalancesPage'
-import { InventoryProductBalancesPage } from '../features/inventory-balances/pages/InventoryProductBalancesPage'
-import { InventoryProductBalanceDetailPage } from '../features/inventory-balances/pages/InventoryProductBalanceDetailPage'
-import { InventoryWarehouseBalancesPage } from '../features/inventory-balances/pages/InventoryWarehouseBalancesPage'
-import { InventoryWarehouseBalanceDetailPage } from '../features/inventory-balances/pages/InventoryWarehouseBalanceDetailPage'
-import { InventoryLocationBalancesPage } from '../features/inventory-balances/pages/InventoryLocationBalancesPage'
-import { InventoryLocationBalanceDetailPage } from '../features/inventory-balances/pages/InventoryLocationBalanceDetailPage'
-import { InventoryPositionsBalancesPage } from '../features/inventory-balances/pages/InventoryPositionsBalancesPage'
 import { InventoryPositionBalanceDetailPage } from '../features/inventory-balances/pages/InventoryPositionBalanceDetailPage'
-import { InventoryBalanceFormulasPage } from '../features/inventory-balances/pages/InventoryBalanceFormulasPage'
-import { InventoryBalanceFreshnessPage } from '../features/inventory-balances/pages/InventoryBalanceFreshnessPage'
-import { InventoryBalanceReconciliationPage } from '../features/inventory-balances/pages/InventoryBalanceReconciliationPage'
-import { InventoryBalanceRebuildsPage } from '../features/inventory-balances/pages/InventoryBalanceRebuildsPage'
-import { InventoryBalanceCheckpointsPage } from '../features/inventory-balances/pages/InventoryBalanceCheckpointsPage'
-import { InventoryBalanceHistoricalPage } from '../features/inventory-balances/pages/InventoryBalanceHistoricalPage'
-import { InventoryNegativeBalancesPage } from '../features/inventory-balances/pages/InventoryNegativeBalancesPage'
-import { InventoryBalanceAlertsPage } from '../features/inventory-balances/pages/InventoryBalanceAlertsPage'
-import { InventoryBalanceExportsPage } from '../features/inventory-balances/pages/InventoryBalanceExportsPage'
 import { InventoryLedgerDashboardPage } from '../features/inventory-ledger/pages/InventoryLedgerDashboardPage'
 import { InventoryMovementsPage } from '../features/inventory-ledger/pages/InventoryMovementsPage'
 import { InventoryMovementDetailPage } from '../features/inventory-ledger/pages/InventoryMovementDetailPage'
@@ -594,25 +577,9 @@ export function AppRouter() {
                   />
                 }
               >
+                {/* Fase 045: el backend solo publica summary, positions/{id} y rebuild. */}
                 <Route path="/logistics/inventory/stock" element={<InventoryStockDashboardPage />} />
-                <Route path="/logistics/inventory/stock/products" element={<InventoryProductBalancesPage />} />
-                <Route path="/logistics/inventory/stock/products/:productId" element={<InventoryProductBalanceDetailPage />} />
-                <Route path="/logistics/inventory/stock/warehouses" element={<InventoryWarehouseBalancesPage />} />
-                <Route path="/logistics/inventory/stock/warehouses/:warehouseId" element={<InventoryWarehouseBalanceDetailPage />} />
-                <Route path="/logistics/inventory/stock/locations" element={<InventoryLocationBalancesPage />} />
-                <Route path="/logistics/inventory/stock/locations/:locationId" element={<InventoryLocationBalanceDetailPage />} />
-                <Route path="/logistics/inventory/stock/positions" element={<InventoryPositionsBalancesPage />} />
                 <Route path="/logistics/inventory/stock/positions/:positionId" element={<InventoryPositionBalanceDetailPage />} />
-                <Route path="/logistics/inventory/stock/list" element={<InventoryBalancesPage />} />
-                <Route path="/logistics/inventory/stock/formulas" element={<InventoryBalanceFormulasPage />} />
-                <Route path="/logistics/inventory/stock/freshness" element={<InventoryBalanceFreshnessPage />} />
-                <Route path="/logistics/inventory/stock/reconciliation" element={<InventoryBalanceReconciliationPage />} />
-                <Route path="/logistics/inventory/stock/rebuilds" element={<InventoryBalanceRebuildsPage />} />
-                <Route path="/logistics/inventory/stock/checkpoints" element={<InventoryBalanceCheckpointsPage />} />
-                <Route path="/logistics/inventory/stock/history" element={<InventoryBalanceHistoricalPage />} />
-                <Route path="/logistics/inventory/stock/negatives" element={<InventoryNegativeBalancesPage />} />
-                <Route path="/logistics/inventory/stock/alerts" element={<InventoryBalanceAlertsPage />} />
-                <Route path="/logistics/inventory/stock/exports" element={<InventoryBalanceExportsPage />} />
               </Route>
               <Route
                 element={

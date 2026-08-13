@@ -300,6 +300,7 @@ describe('rutas del navbar', () => {
   })
 
   it('la ruta canónica de almacenes es /logistics/warehouses y la antigua redirige', () => {
+    // La ruta legacy sobrevive solo como redirect de compatibilidad.
     // Se compara por patrón y no por texto exacto: con core.autocrlf el
     // checkout en Windows reescribe el archivo con CRLF, y una comparación
     // literal contra saltos de línea Unix nunca coincidiría.
@@ -310,6 +311,7 @@ describe('rutas del navbar', () => {
       ALL_NAVIGATION_MODULES.find((module) => module.id === 'warehouses')?.route,
     ).toBe('/logistics/warehouses')
     expect(ROUTE_BY_PATH.has('/logistics/warehouses')).toBe(true)
+    expect(ROUTE_BY_PATH.has('/warehouses')).toBe(true)
   })
 
   it('/logistics/evidence sigue redirigiendo a archivos y no tiene botón propio', () => {

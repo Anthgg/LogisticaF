@@ -4,6 +4,7 @@ import { PageHeader } from '../../../components/common/PageHeader'
 import { Button } from '../../../components/common/Button'
 import { useLogisticsContextSelector } from '../../logistics-permissions/hooks/useLogisticsContextSelector'
 import { useLogisticsPermissions } from '../../logistics-permissions/hooks/useLogisticsPermissions'
+import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
 import { DailySummary } from '../components/DailySummary'
 import { DockQueueFilters, type QueueFilter } from '../components/Filters'
 import { InboundBoard, type BoardCardEntry } from '../components/InboundBoard'
@@ -19,7 +20,7 @@ export function InboundDockOperationsBoardPage() {
   const navigate = useNavigate()
   const { context, options } = useLogisticsContextSelector()
   const { hasPermission, userId } = useLogisticsPermissions()
-  const canViewQueue = hasPermission('logistics.inbound_docks.view_queue')
+  const canViewQueue = hasPermission(LOGISTICS_PERMISSIONS.inboundDocks.viewQueue)
   const [filter, setFilter] = useState<QueueFilter>({})
   const [view, setView] = useState<ViewMode>('board')
   const [priorityEntry, setPriorityEntry] = useState<InboundDockQueueEntry | null>(null)

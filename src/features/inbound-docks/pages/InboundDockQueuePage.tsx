@@ -4,6 +4,7 @@ import { PageHeader } from '../../../components/common/PageHeader'
 import { Button } from '../../../components/common/Button'
 import { useLogisticsContextSelector } from '../../logistics-permissions/hooks/useLogisticsContextSelector'
 import { useLogisticsPermissions } from '../../logistics-permissions/hooks/useLogisticsPermissions'
+import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
 import { DockQueueFilters, type QueueFilter } from '../components/Filters'
 import { InboundDockQueueTable } from '../components/InboundDockQueueTable'
 import { ChangeDockQueuePriorityDialog } from '../components/dialogs/ChangeDockQueuePriorityDialog'
@@ -17,8 +18,8 @@ export function InboundDockQueuePage() {
   const navigate = useNavigate()
   const { context, options } = useLogisticsContextSelector()
   const { hasPermission } = useLogisticsPermissions()
-  const canViewQueue = hasPermission('logistics.inbound_docks.view_queue')
-  const canChangePriority = hasPermission('logistics.inbound_docks.change_priority')
+  const canViewQueue = hasPermission(LOGISTICS_PERMISSIONS.inboundDocks.viewQueue)
+  const canChangePriority = hasPermission(LOGISTICS_PERMISSIONS.inboundDocks.changePriority)
   const [filter, setFilter] = useState<QueueFilter>({})
   const [page, setPage] = useState(1)
   const [priorityEntry, setPriorityEntry] = useState<InboundDockQueueEntry | null>(null)

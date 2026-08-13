@@ -5,6 +5,7 @@ import { ChangeDockQueuePriorityDialog } from '../components/dialogs/ChangeDockQ
 import { inboundDockQueueApi } from '../api/inboundDockQueueApi'
 import { LogisticsAuthorizationContext } from '../../logistics-permissions/contexts/logistics-authorization-context'
 import { createLogisticsAuthState } from '../../logistics-permissions/test/test-utils'
+import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
 import type { InboundDockQueueEntry } from '../types/inbound-docks'
 
 vi.mock('../api/inboundDockQueueApi', () => ({
@@ -62,7 +63,7 @@ const mockEntry: InboundDockQueueEntry = {
 
 function renderDialog(
   open = true,
-  permissions = ['logistics.inbound_docks.change_priority'],
+  permissions = [LOGISTICS_PERMISSIONS.inboundDocks.changePriority],
   onChanged = vi.fn(),
   onOpenChange = vi.fn(),
 ) {
@@ -86,7 +87,7 @@ describe('ChangeDockQueuePriorityDialog', () => {
 
   it('no muestra nada si entry es null', () => {
     const authState = createLogisticsAuthState({
-      permissions: ['logistics.inbound_docks.change_priority'],
+      permissions: [LOGISTICS_PERMISSIONS.inboundDocks.changePriority],
     })
     const { container } = render(
       <LogisticsAuthorizationContext.Provider value={authState}>
@@ -150,7 +151,7 @@ describe('ChangeDockQueuePriorityDialog', () => {
     const updatedEntry = { ...mockEntry, priority: 'HIGH' as const }
     vi.mocked(inboundDockQueueApi.changePriority).mockResolvedValueOnce(updatedEntry)
 
-    renderDialog(true, ['logistics.inbound_docks.change_priority'], onChanged, onOpenChange)
+    renderDialog(true, [LOGISTICS_PERMISSIONS.inboundDocks.changePriority], onChanged, onOpenChange)
 
     await user.click(screen.getByText('Alta'))
 

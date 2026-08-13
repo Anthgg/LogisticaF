@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { UnloadingCompletionChecklist } from '../components/UnloadingCompletionChecklist'
 import { LogisticsAuthorizationContext } from '../../logistics-permissions/contexts/logistics-authorization-context'
 import { createLogisticsAuthState } from '../../logistics-permissions/test/test-utils'
+import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
 import type { UnloadingCompletionCheck, UnloadingOperation } from '../types/inbound-docks'
 
 const mockOperation: UnloadingOperation = {
@@ -98,7 +99,7 @@ const mockChecks: UnloadingCompletionCheck[] = [
   },
 ]
 
-function renderChecklist(permissions: string[] = ['logistics.inbound_docks.complete']) {
+function renderChecklist(permissions: string[] = [LOGISTICS_PERMISSIONS.inboundDocks.complete]) {
   const authState = createLogisticsAuthState({ permissions })
   return render(
     <LogisticsAuthorizationContext.Provider value={authState}>
@@ -129,8 +130,8 @@ describe('UnloadingCompletionChecklist', () => {
     expect(screen.getByText('Cumple con observación')).toBeInTheDocument()
   })
 
-  it('muestra el botón de Actualizar solo cuando el usuario tiene permiso logistics.inbound_docks.complete', () => {
-    const { rerender } = renderChecklist(['logistics.inbound_docks.complete'])
+  it('muestra el botón de Actualizar solo cuando el usuario tiene permiso logistics.unloading_operations.complete', () => {
+    const { rerender } = renderChecklist([LOGISTICS_PERMISSIONS.inboundDocks.complete])
     const updateButtons = screen.getAllByRole('button', { name: 'Actualizar' })
     expect(updateButtons.length).toBe(4)
 
@@ -151,7 +152,7 @@ describe('UnloadingCompletionChecklist', () => {
 
   it('abre el dialogo de actualización al hacer click en el botón Actualizar', async () => {
     const user = userEvent.setup()
-    renderChecklist(['logistics.inbound_docks.complete'])
+    renderChecklist([LOGISTICS_PERMISSIONS.inboundDocks.complete])
 
     const updateBtns = screen.getAllByRole('button', { name: 'Actualizar' })
     await user.click(updateBtns[0])

@@ -4,6 +4,7 @@ import { PageHeader } from '../../../components/common/PageHeader'
 import { Button } from '../../../components/common/Button'
 import { useLogisticsContextSelector } from '../../logistics-permissions/hooks/useLogisticsContextSelector'
 import { useLogisticsPermissions } from '../../logistics-permissions/hooks/useLogisticsPermissions'
+import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
 import { DockQueueFilters, type QueueFilter } from '../components/Filters'
 import { ErrorPanel, SectionPanel, SkeletonRows } from '../components/ui/Primitives'
 import { InboundDockDailyCalendar } from '../components/WarehouseDockSchedules'
@@ -16,7 +17,7 @@ export function InboundDockCalendarPage() {
   const navigate = useNavigate()
   const { context, options } = useLogisticsContextSelector()
   const { hasPermission } = useLogisticsPermissions()
-  const canView = hasPermission('logistics.inbound_docks.read')
+  const canView = hasPermission(LOGISTICS_PERMISSIONS.inboundDocks.view)
   const [filter, setFilter] = useState<QueueFilter>({})
   const warehouseId = filter.warehouse_id ?? context.warehouse_id ?? options.warehouses[0]?.id ?? ''
   const summary = useInboundDockQueueSummary(warehouseId)

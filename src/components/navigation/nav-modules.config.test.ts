@@ -301,8 +301,11 @@ describe('rutas del navbar', () => {
 
   it('la ruta canónica de almacenes es /logistics/warehouses y la antigua redirige', () => {
     // La ruta legacy sobrevive solo como redirect de compatibilidad.
+    // Se compara por patrón y no por texto exacto: con core.autocrlf el
+    // checkout en Windows reescribe el archivo con CRLF, y una comparación
+    // literal contra saltos de línea Unix nunca coincidiría.
     expect(ROUTER_SOURCE).toMatch(
-      /path="\/warehouses"\s*\n?\s*element=\{<Navigate to="\/logistics\/warehouses" replace \/>\}/,
+      /path="\/warehouses"\s*element=\{<Navigate to="\/logistics\/warehouses" replace \/>\}/,
     )
     expect(
       ALL_NAVIGATION_MODULES.find((module) => module.id === 'warehouses')?.route,

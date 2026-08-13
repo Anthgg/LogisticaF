@@ -1,14 +1,16 @@
 import { test, expect } from '@playwright/test'
 import { installApiMocks } from './fixtures/api-mocks'
+import { LOGISTICS_PERMISSIONS } from '../src/features/logistics-permissions/logistics-permissions-map'
 
+// Capabilities canónicas del catálogo RBAC (mismas que emite el backend).
 const permissions = [
-  'logistics.warehouses.read',
-  'logistics.inbound_docks.read',
-  'logistics.inbound_docks.view_queue',
-  'logistics.inbound_docks.change_priority',
-  'logistics.inbound_docks.assign',
-  'logistics.inbound_docks.start_unloading',
-  'logistics.inbound_docks.complete',
+  LOGISTICS_PERMISSIONS.warehouses.read,
+  LOGISTICS_PERMISSIONS.inboundDocks.view,
+  LOGISTICS_PERMISSIONS.inboundDocks.viewQueue,
+  LOGISTICS_PERMISSIONS.inboundDocks.changePriority,
+  LOGISTICS_PERMISSIONS.inboundDocks.assign,
+  LOGISTICS_PERMISSIONS.inboundDocks.startUnloading,
+  LOGISTICS_PERMISSIONS.inboundDocks.complete,
 ]
 
 const roles = [

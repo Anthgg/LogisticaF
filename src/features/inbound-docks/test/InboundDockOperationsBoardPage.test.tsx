@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { InboundDockOperationsBoardPage } from '../pages/InboundDockOperationsBoardPage'
 import { LogisticsAuthorizationContext } from '../../logistics-permissions/contexts/logistics-authorization-context'
 import { createLogisticsAuthState } from '../../logistics-permissions/test/test-utils'
+import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
 
 vi.mock('../../logistics-permissions/hooks/useSensitiveActionGuard', () => ({
   useSensitiveActionGuard: () => ({
@@ -78,7 +79,7 @@ vi.mock('../hooks/useInboundDocksQueries', () => ({
   })),
 }))
 
-function renderPage(permissions: string[] = ['logistics.inbound_docks.view_queue']) {
+function renderPage(permissions: string[] = [LOGISTICS_PERMISSIONS.inboundDocks.viewQueue]) {
   const authState = createLogisticsAuthState({ permissions })
   return render(
     <LogisticsAuthorizationContext.Provider value={authState}>
@@ -109,15 +110,15 @@ describe('InboundDockOperationsBoardPage', () => {
     expect(screen.getByText('Calendario operativo')).toBeInTheDocument()
   })
 
-  it('muestra aviso cuando no se tiene permiso logistics.inbound_docks.view_queue', () => {
+  it('muestra aviso cuando no se tiene permiso logistics.inbound_dock_queue.read', () => {
     renderPage([])
     expect(
       screen.getByText('No tienes capability para visualizar la cola de muelles.'),
     ).toBeInTheDocument()
   })
 
-  it('no muestra advertencia cuando se cuenta con el permiso logistics.inbound_docks.view_queue', () => {
-    renderPage(['logistics.inbound_docks.view_queue'])
+  it('no muestra advertencia cuando se cuenta con el permiso logistics.inbound_dock_queue.read', () => {
+    renderPage([LOGISTICS_PERMISSIONS.inboundDocks.viewQueue])
     expect(
       screen.queryByText('No tienes capability para visualizar la cola de muelles.'),
     ).not.toBeInTheDocument()
@@ -125,7 +126,7 @@ describe('InboundDockOperationsBoardPage', () => {
 
   it('renderiza elementos de la cola y permite abrir dialogo de cambio de prioridad', async () => {
     const user = userEvent.setup()
-    renderPage(['logistics.inbound_docks.view_queue', 'logistics.inbound_docks.change_priority'])
+    renderPage([LOGISTICS_PERMISSIONS.inboundDocks.viewQueue, LOGISTICS_PERMISSIONS.inboundDocks.changePriority])
     expect(screen.getByText(/CPV-001/)).toBeInTheDocument()
 
     const priorityBtn = screen.getByRole('button', { name: 'Prioridad' })

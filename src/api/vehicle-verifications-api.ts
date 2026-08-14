@@ -1,4 +1,5 @@
-import { apiRequest, getCsrfToken } from './api-client'
+import { apiRequest, getCsrfToken } from './api-client'
+import { ApiRequestError } from '../types/api'
 import type { PaginatedResponse } from '../types/logistics-resources'
 import type {
   AssistedVehicleVerification,
@@ -100,20 +101,14 @@ export const vehicleVerificationsApi = {
   },
 
   async getStats(): Promise<VehicleVerificationStats> {
-    // Sin contrato: el backend no publica /stats. Pedirlo hace que FastAPI
-    // interprete "stats" como {verification_id} y responda 422. Se devuelve el
-    // agregado vacio en vez de ejecutar una peticion invalida.
-    {
-      return {
-        total_verifications: 0,
-        fresh_count: 0,
-        expiring_soon_count: 0,
-        expired_count: 0,
-        conflicted_count: 0,
-        degraded_sources_count: 0,
-        pending_tasks_count: 0,
-      }
-    }
+    // Sin contrato: el backend no publica /stats y "stats" caeria en un path
+    // param UUID (422). Se falla explicitamente en vez de devolver ceros: un
+    // agregado en cero se lee como dato confirmado, y aqui no hay dato. El
+    // consumidor ya trata el fallo mostrando la seccion como no disponible.
+    throw new ApiRequestError('El resumen no esta disponible en el contrato actual.', {
+      code: 'NOT_IMPLEMENTED_IN_CONTRACT',
+      status: 501,
+    })
   },
 
   async listByVehicle(vehicleId: string): Promise<VehicleVerification[]> {

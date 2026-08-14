@@ -1,4 +1,5 @@
 import { apiRequest, getCsrfToken } from '../../../api/api-client'
+import { contractGap } from '../../../api/contract-availability'
 import type {
   QuarantineReleaseAuthorization,
   RequestQuarantineReleaseRequest,
@@ -29,15 +30,9 @@ export const quarantineReleaseApi = {
     })
   },
 
-  /** POST /quarantine-release-authorizations/{releaseId}/approve */
-  async approveAuthorization(releaseId: string, data?: { decision?: string; comments?: string }): Promise<QuarantineReleaseAuthorization> {
-    const csrf = await withCsrf()
-    return apiRequest({
-      path: `${BASE}/${releaseId}/approve`,
-      method: 'POST',
-      headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: data ?? {},
-    })
+  /** Sin contrato: la única transición publicada después de crear es execute. */
+  async approveAuthorization(_releaseId: string, _data?: { decision?: string; comments?: string }): Promise<never> {
+    throw contractGap('Aprobar por separado una autorización de liberación')
   },
 
   /** POST /quarantine-release-authorizations/{releaseId}/execute */

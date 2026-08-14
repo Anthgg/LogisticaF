@@ -1,8 +1,29 @@
 import { apiRequest, getCsrfToken } from '../../../api/api-client'
-import type {
-  QualitySamplingPlan,
-  CreateQualitySamplingPlanRequest,
-} from '../types/quality-inspection-plans'
+
+export interface QualitySamplingContract {
+  id: string
+  control_id: string
+  sampling_type: string
+  fixed_count: number | null
+  percentage: string | null
+  minimum_count: number | null
+  package_level: string | null
+  lot_level: string | null
+  custom_formula: string | null
+  description: string | null
+  created_at: string
+}
+
+export interface QualitySamplingContractRequest {
+  sampling_type: string
+  fixed_count?: number | null
+  percentage?: string | null
+  minimum_count?: number | null
+  package_level?: string | null
+  lot_level?: string | null
+  custom_formula?: string | null
+  description?: string | null
+}
 
 const BASE = '/logistics/quality-inspection-plans'
 
@@ -19,12 +40,12 @@ async function withCsrf(): Promise<Record<string, string>> {
 
 export const qualitySamplingPlansApi = {
   /** GET /quality-inspection-plans/controls/{controlId}/samplings */
-  async list(controlId: string): Promise<QualitySamplingPlan[]> {
+  async list(controlId: string): Promise<QualitySamplingContract[]> {
     return apiRequest({ path: `${BASE}/controls/${controlId}/samplings`, method: 'GET' })
   },
 
   /** POST /quality-inspection-plans/controls/{controlId}/samplings */
-  async create(controlId: string, data: CreateQualitySamplingPlanRequest): Promise<QualitySamplingPlan> {
+  async create(controlId: string, data: QualitySamplingContractRequest): Promise<QualitySamplingContract> {
     const csrf = await withCsrf()
     return apiRequest({
       path: `${BASE}/controls/${controlId}/samplings`,
@@ -35,7 +56,7 @@ export const qualitySamplingPlansApi = {
   },
 
   /** PATCH /quality-inspection-plans/samplings/{samplingId} */
-  async update(samplingId: string, data: CreateQualitySamplingPlanRequest): Promise<QualitySamplingPlan> {
+  async update(samplingId: string, data: QualitySamplingContractRequest): Promise<QualitySamplingContract> {
     const csrf = await withCsrf()
     return apiRequest({
       path: `${BASE}/samplings/${samplingId}`,

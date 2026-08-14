@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { PutawayDashboardPage } from './PutawayDashboardPage'
 import { PutawayOrdersPage } from './PutawayOrdersPage'
 import { PutawayTasksPage } from './PutawayTasksPage'
 import { PutawayExceptionsPage } from './PutawayExceptionsPage'
 import { PutawayCapacityPage } from './PutawayCapacityPage'
+import { PutawayHistoryPage } from './PutawayHistoryPage'
+import { PutawayIntegrityPage } from './PutawayIntegrityPage'
 
 const mocks = vi.hoisted(() => ({ useQuery: vi.fn(), useLogisticsAccess: vi.fn() }))
 
@@ -32,6 +34,36 @@ describe('contratos efectivos de la Fase 043', () => {
     renderPage(<PutawayDashboardPage />)
     expect(mocks.useQuery.mock.calls.map((call) => call[1])).toEqual(expect.arrayContaining(['/logistics/putaway/orders', '/logistics/putaway/tasks']))
     expect(mocks.useQuery.mock.calls.some((call) => call[1] === '/logistics/putaway-dashboard')).toBe(false)
+  })
+
+  it('usa revisiones reales y no solicita un history futuro', () => {
+    mocks.useQuery.mockReturnValue({ ...idleQuery, data: undefined })
+    render(
+      <MemoryRouter initialEntries={['/logistics/putaway/orders/order-id/history']}>
+        <Routes><Route path="/logistics/putaway/orders/:orderId/history" element={<PutawayHistoryPage />} /></Routes>
+      </MemoryRouter>,
+    )
+    expect(mocks.useQuery).toHaveBeenCalledWith(
+      expect.any(Array),
+      '/logistics/putaway/orders/order-id/revisions',
+      undefined,
+      { enabled: true },
+    )
+    expect(mocks.useQuery.mock.calls.some((call) => call[1].endsWith('/history'))).toBe(false)
+  })
+
+  it('deriva el control técnico de orden y revisiones sin solicitar integrity', () => {
+    mocks.useQuery.mockReturnValue({ ...idleQuery, data: undefined })
+    render(
+      <MemoryRouter initialEntries={['/logistics/putaway/orders/order-id/integrity']}>
+        <Routes><Route path="/logistics/putaway/orders/:orderId/integrity" element={<PutawayIntegrityPage />} /></Routes>
+      </MemoryRouter>,
+    )
+    expect(mocks.useQuery.mock.calls.map((call) => call[1])).toEqual([
+      '/logistics/putaway/orders/order-id',
+      '/logistics/putaway/orders/order-id/revisions',
+    ])
+    expect(mocks.useQuery.mock.calls.some((call) => call[1].endsWith('/integrity'))).toBe(false)
   })
 
   it('usa el envelope paginado de órdenes', () => {

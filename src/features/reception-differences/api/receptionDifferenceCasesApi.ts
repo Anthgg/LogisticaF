@@ -68,6 +68,11 @@ export const receptionDifferenceCasesApi = {
     })
   },
 
+  /** GET /reception-difference-cases/summary */
+  async getSummary(): Promise<Record<string, unknown>> {
+    return apiRequest({ path: `${BASE}/summary`, method: 'GET' })
+  },
+
   /** GET /reception-difference-cases/{case_id} */
   async get(caseId: string): Promise<ReceptionDifferenceCaseDetail> {
     return apiRequest({ path: `${BASE}/${caseId}`, method: 'GET' })

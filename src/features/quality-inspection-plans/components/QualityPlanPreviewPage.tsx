@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation } from '../../../features/inbound-docks/hooks/useQuery'
 import { qualityPlanAnalyticsApi } from '../api/qualityPlanResolutionApi'
-import type { QualityPlanPreviewRequest, QualityPlanPreview } from '../types/quality-inspection-plans'
+import type { QualityPlanPreviewRequest, FutureQualityInspectionTemplate } from '../types/quality-inspection-plans'
 import { Button } from '../../../components/common/Button'
 
 interface QualityPlanPreviewPageProps {
@@ -20,14 +20,14 @@ const EMPTY_CONTEXT: QualityPlanPreviewRequest = {
   declared_conditions: {},
 }
 
-export function QualityPlanPreviewPage({ planId }: QualityPlanPreviewPageProps) {
+export function QualityPlanPreviewPage({ planId: _planId }: QualityPlanPreviewPageProps) {
   const [form, setForm] = useState<QualityPlanPreviewRequest>(EMPTY_CONTEXT)
   const [conditionKey, setConditionKey] = useState('')
   const [conditionValue, setConditionValue] = useState('')
 
-  const [previewData, setPreviewData] = useState<QualityPlanPreview | null>(null)
+  const [previewData, setPreviewData] = useState<FutureQualityInspectionTemplate | null>(null)
 
-  const previewMutation = useMutation<QualityPlanPreviewRequest, QualityPlanPreview>(
+  const previewMutation = useMutation<QualityPlanPreviewRequest, FutureQualityInspectionTemplate>(
     async (data) => {
       const cleaned: QualityPlanPreviewRequest = {}
       if (data.product_id) cleaned.product_id = data.product_id
@@ -41,7 +41,7 @@ export function QualityPlanPreviewPage({ planId }: QualityPlanPreviewPageProps) 
       if (data.declared_conditions && Object.keys(data.declared_conditions).length > 0) {
         cleaned.declared_conditions = data.declared_conditions
       }
-      return qualityPlanAnalyticsApi.preview(planId, cleaned)
+      return qualityPlanAnalyticsApi.futureTemplatePreview(cleaned)
     },
     {
       onSuccess: (result) => setPreviewData(result),
@@ -222,20 +222,16 @@ export function QualityPlanPreviewPage({ planId }: QualityPlanPreviewPageProps) 
       {preview && (
         <>
           <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h3 className="text-sm font-bold text-slate-800">Plan resuelto</h3>
+            <h3 className="text-sm font-bold text-slate-800">Plantilla futura resuelta</h3>
             <dl className="mt-2 grid grid-cols-2 gap-1 text-[11px] md:grid-cols-4">
               <dt className="text-slate-500">Plan:</dt>
-              <dd className="font-semibold text-slate-800">{preview.plan_code} — {preview.plan_name}</dd>
+              <dd className="font-semibold text-slate-800">{preview.plan_code}</dd>
               <dt className="text-slate-500">Versión:</dt>
               <dd>{preview.version_number}</dd>
-              <dt className="text-slate-500">Especificidad:</dt>
-              <dd>{preview.specificity}</dd>
-              {preview.scope && (
-                <>
-                  <dt className="text-slate-500">Ámbito:</dt>
-                  <dd>{preview.scope.scope_type} — {preview.scope.action}</dd>
-                </>
-              )}
+              <dt className="text-slate-500">Duración estimada:</dt>
+              <dd>{preview.estimated_duration_minutes != null ? `${preview.estimated_duration_minutes} min` : 'No disponible'}</dd>
+              <dt className="text-slate-500">Producto:</dt>
+              <dd>{preview.product_name ?? preview.product_id ?? 'No disponible'}</dd>
             </dl>
           </div>
 
@@ -356,50 +352,6 @@ export function QualityPlanPreviewPage({ planId }: QualityPlanPreviewPageProps) 
             </div>
           )}
 
-          {preview.warnings.length > 0 && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-              <h3 className="text-sm font-bold text-amber-800">Advertencias</h3>
-              <ul className="mt-2 list-disc pl-4 text-[11px] text-amber-700">
-                {preview.warnings.map((w: any, i: number) => (
-                  <li key={i}>{w}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {preview.exclusions.length > 0 && (
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <h3 className="text-sm font-bold text-slate-800">Exclusiones ({preview.exclusions.length})</h3>
-              <ul className="mt-2 space-y-1">
-                {preview.exclusions.map((ex: any) => (
-                  <li key={ex.scope_id} className="text-[11px] text-slate-600">
-                    {ex.scope_type}: {ex.product_name ?? ex.category_name ?? ex.scope_id}
-                    <span className="ml-1 text-slate-400">({ex.action})</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {preview.conflicts.length > 0 && (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-              <h3 className="text-sm font-bold text-rose-800">Conflictos ({preview.conflicts.length})</h3>
-              <ul className="mt-2 space-y-1">
-                {preview.conflicts.map((c: any) => (
-                  <li key={c.conflict_id} className="text-[11px] text-rose-700">
-                    {c.conflicting_plan_code} — {c.rule_description}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {preview.explanation && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <h3 className="text-sm font-bold text-slate-800">Explicación</h3>
-              <p className="mt-1 text-[11px] text-slate-600">{preview.explanation}</p>
-            </div>
-          )}
         </>
       )}
     </div>

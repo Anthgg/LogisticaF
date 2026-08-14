@@ -3,7 +3,6 @@ import type {
   QualityInspection,
   QualityInspectionControl,
   QualityInspectionEvidence,
-  QualityQuarantineIntegrity,
 } from '../types/quarantine'
 import { StatusBadge } from '../../../components/common/StatusBadge'
 
@@ -35,16 +34,8 @@ export function QualityInspectionResultPanel({ inspection }: Props) {
     { enabled: !!inspection.inspection_id },
   )
 
-  const integrityQuery = useQuery<QualityQuarantineIntegrity>(
-    ['inspection-integrity', inspection.inspection_id],
-    `/logistics/quality-inspections/${inspection.inspection_id}/integrity`,
-    {},
-    { enabled: !!inspection.inspection_id },
-  )
-
   const controls = controlsQuery.data?.items ?? []
   const evidenceItems = evidenceQuery.data?.items ?? []
-  const integrity = integrityQuery.data ?? null
 
   const blockingControls = controls.filter((c) => c.is_blocking)
   const outOfRangeControls = controls.filter((c) => c.tolerance_result === 'OUTSIDE_TOLERANCE')
@@ -191,18 +182,6 @@ export function QualityInspectionResultPanel({ inspection }: Props) {
             </div>
           </div>
 
-          {/* Integrity */}
-          {integrity && (
-            <div className="p-4 text-xs">
-              <span className="text-muted">Integridad</span>
-              <div className="mt-1">
-                <StatusBadge value={integrity.status.toLowerCase()} />
-              </div>
-              {integrity.last_verified_at && (
-                <p className="text-muted mt-1">Última verificación: {new Date(integrity.last_verified_at).toLocaleString()}</p>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>

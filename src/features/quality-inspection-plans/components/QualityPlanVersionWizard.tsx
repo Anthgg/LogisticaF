@@ -2,20 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '../../../components/common/Button'
 import { useMutation, useQuery } from '../../inbound-docks/hooks/useQuery'
 import { apiRequest, getCsrfToken } from '../../../api/api-client'
-import { ErrorPanel, SkeletonRows } from '../../inbound-docks/components/ui/Primitives'
+import { SkeletonRows } from '../../inbound-docks/components/ui/Primitives'
 import { QualityPlanScopesEditor } from './QualityPlanScopesEditor'
 import { QualityControlsEditor } from './QualityControlsEditor'
 import { QualityPlanValidationPanel } from './QualityPlanValidationPanel'
+import QualityCertificateRequirementsEditor from './QualityCertificateRequirementsEditor'
+import { useLogisticsPermissions } from '../../logistics-permissions/hooks/useLogisticsPermissions'
+import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
 import type {
   QualityInspectionPlanVersion,
   QualityInspectionPlanCapabilities,
   QualityPlanScope,
   QualityControlDefinition,
-  QualityTolerance,
-  QualitySamplingPlan,
-  QualityCertificateRequirement,
   QualityPlanValidation,
-  PaginatedResponse,
 } from '../types/quality-inspection-plans'
 
 const WIZARD_STEPS = [
@@ -52,7 +51,7 @@ function formatDate(iso: string | null): string {
 }
 
 export function QualityPlanVersionWizard({
-  planId,
+  planId: planIdProp,
   versionId: initialVersionId,
   onComplete,
   onCancel,
@@ -61,6 +60,8 @@ export function QualityPlanVersionWizard({
   const [versionId, setVersionId] = useState<string | null>(initialVersionId ?? null)
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set())
   const [error, setError] = useState<string | null>(null)
+  const [selectedControlId, setSelectedControlId] = useState('')
+  const { hasPermission } = useLogisticsPermissions()
 
 
 
@@ -69,8 +70,6 @@ export function QualityPlanVersionWizard({
     valid_until: '',
     priority: 0,
   })
-
-  const [capabilities, setCapabilities] = useState<QualityInspectionPlanCapabilities | null>(null)
 
   const currentStep = WIZARD_STEPS[currentStepIndex]
 
@@ -82,53 +81,60 @@ export function QualityPlanVersionWizard({
     { enabled: Boolean(versionId) },
   )
 
-  const scopesQueryKey = useMemo(() => ['quality-plan-scopes', versionId], [versionId])
+  // Ámbitos y controles cuelgan del PLAN. Al crear una versión el plan llega
+  // por props; al editar una existente lo aporta la propia versión.
+  const planId = planIdProp ?? versionData?.plan_id ?? null
+
+  const scopesQueryKey = useMemo(() => ['quality-plan-scopes', planId], [planId])
   const { data: scopesData, isLoading: scopesLoading, refetch: refetchScopes } = useQuery<QualityPlanScope[]>(
     scopesQueryKey,
-    `/logistics/quality-plan-scopes`,
-    { version_id: versionId },
-    { enabled: Boolean(versionId) && currentStep.key === 'scopes' },
+    planId ? `/logistics/quality-inspection-plans/${planId}/scopes` : '',
+    undefined,
+    { enabled: Boolean(planId) && currentStep.key === 'scopes' },
   )
 
-  const controlsQueryKey = useMemo(() => ['quality-plan-controls', versionId], [versionId])
+  const controlResourceSteps = ['controls', 'tolerances', 'sampling', 'certificates', 'conditions', 'future']
+  const controlsQueryKey = useMemo(() => ['quality-plan-controls', planId], [planId])
   const { data: controlsData, isLoading: controlsLoading, refetch: refetchControls } = useQuery<QualityControlDefinition[]>(
     controlsQueryKey,
-    `/logistics/quality-controls`,
-    { version_id: versionId },
-    { enabled: Boolean(versionId) && currentStep.key === 'controls' },
+    planId ? `/logistics/quality-inspection-plans/${planId}/controls` : '',
+    undefined,
+    { enabled: Boolean(planId) && controlResourceSteps.includes(currentStep.key) },
   )
 
-  const tolerancesQueryKey = useMemo(() => ['quality-plan-tolerances'], [])
-  const { data: tolerancesData, isLoading: tolerancesLoading } = useQuery<PaginatedResponse<QualityTolerance>>(
-    tolerancesQueryKey,
-    `/logistics/quality-tolerances`,
-    {},
-    { enabled: currentStep.key === 'tolerances' },
-  )
-
-  const samplingQueryKey = useMemo(() => ['quality-plan-sampling'], [])
-  const { data: samplingData, isLoading: samplingLoading } = useQuery<PaginatedResponse<QualitySamplingPlan>>(
-    samplingQueryKey,
-    `/logistics/quality-sampling-plans`,
-    {},
-    { enabled: currentStep.key === 'sampling' },
-  )
-
-  const certificatesQueryKey = useMemo(() => ['quality-plan-certificates'], [])
-  const { data: certificatesData, isLoading: certificatesLoading } = useQuery<PaginatedResponse<QualityCertificateRequirement>>(
-    certificatesQueryKey,
-    `/logistics/quality-certificate-requirements`,
-    {},
-    { enabled: currentStep.key === 'certificates' },
-  )
-
-  const validationQueryKey = useMemo(() => ['quality-plan-validation', versionId], [versionId])
-  const { data: validationData, isLoading: validationLoading } = useQuery<QualityPlanValidation>(
+  // La validación del contrato es por plan, no por versión.
+  const validationQueryKey = useMemo(() => ['quality-plan-validation', planId], [planId])
+  const { data: validationData, isLoading: validationLoading, refetch: refetchValidation } = useQuery<QualityPlanValidation>(
     validationQueryKey,
-    `/logistics/quality-inspection-plans/versions/${versionId}/validate`,
+    planId ? `/logistics/quality-inspection-plans/${planId}/validate` : '',
     {},
-    { enabled: Boolean(versionId) && currentStep.key === 'validation' },
+    { enabled: Boolean(planId) && currentStep.key === 'validation' },
   )
+
+  const permissions = LOGISTICS_PERMISSIONS.qualityInspectionPlans
+  const capabilities = useMemo<QualityInspectionPlanCapabilities>(() => ({
+    plan_id: planId,
+    can_view: hasPermission(permissions.read),
+    can_create: hasPermission(permissions.create),
+    can_update: hasPermission(permissions.update),
+    can_clone: false,
+    can_archive: hasPermission(permissions.archive),
+    can_create_version: hasPermission(permissions.createVersion),
+    can_manage_scopes: hasPermission(permissions.manageScopes),
+    can_manage_controls: hasPermission(permissions.manageControls),
+    can_manage_tolerances: hasPermission(permissions.manageTolerances),
+    can_manage_sampling: hasPermission(permissions.manageSampling),
+    can_manage_certificates: hasPermission(permissions.manageCertificates),
+    can_validate: hasPermission(permissions.validate),
+    can_detect_conflicts: hasPermission(permissions.detectConflicts),
+    can_activate: hasPermission(permissions.activate),
+    can_retire: hasPermission(permissions.retire),
+    can_preview: hasPermission(permissions.preview),
+    can_resolve: hasPermission(permissions.resolve),
+    can_view_history: false,
+    can_view_integrity: hasPermission(permissions.viewIntegrity),
+    can_view_future_inspection_template: hasPermission(permissions.viewFutureTemplate),
+  }), [hasPermission, permissions, planId])
 
 
 
@@ -136,7 +142,7 @@ export function QualityPlanVersionWizard({
     async (input) => {
       const csrf = await getCsrfToken()
       return apiRequest<QualityInspectionPlanVersion>({
-        path: `/logistics/quality-plan-versions?plan_id=${planId}`,
+        path: `/logistics/quality-inspection-plans/${planId}/versions`,
         method: 'POST',
         headers: { 'X-CSRF-Token': csrf, 'Idempotency-Key': crypto.randomUUID() },
         body: {
@@ -154,58 +160,9 @@ export function QualityPlanVersionWizard({
           valid_until: result.valid_until ?? '',
           priority: result.priority,
         })
-        setCompletedSteps((prev) => new Set([...prev, 0]))
-        setCurrentStepIndex(1)
+        setCompletedSteps((prev) => new Set([...prev, 0, 1]))
+        setCurrentStepIndex(2)
         setError(null)
-      },
-      onError: (err) => setError(err.message),
-    },
-  )
-
-  const updateVersionMutation = useMutation<VersionFormData, QualityInspectionPlanVersion>(
-    async (input) => {
-      if (!versionId) throw new Error('No version ID')
-      const csrf = await getCsrfToken()
-      return apiRequest<QualityInspectionPlanVersion>({
-        path: `/logistics/quality-inspection-plans/versions/${versionId}`,
-        method: 'PATCH',
-        headers: { 'X-CSRF-Token': csrf, 'Idempotency-Key': crypto.randomUUID() },
-        body: {
-          valid_from: input.valid_from || undefined,
-          valid_until: input.valid_until || undefined,
-          priority: input.priority,
-        },
-      })
-    },
-    {
-      onSuccess: (result) => {
-        setFormData({
-          valid_from: result.valid_from ?? '',
-          valid_until: result.valid_until ?? '',
-          priority: result.priority,
-        })
-        setCompletedSteps((prev) => new Set([...prev, currentStepIndex]))
-        setCurrentStepIndex((prev) => Math.min(prev + 1, WIZARD_STEPS.length - 1))
-        setError(null)
-      },
-      onError: (err) => setError(err.message),
-    },
-  )
-
-  const validateMutation = useMutation<void, QualityPlanValidation>(
-    async () => {
-      if (!versionId) throw new Error('No version ID')
-      const csrf = await getCsrfToken()
-      return apiRequest<QualityPlanValidation>({
-        path: `/logistics/quality-inspection-plans/versions/${versionId}/validate`,
-        method: 'POST',
-        headers: { 'X-CSRF-Token': csrf },
-        body: {},
-      })
-    },
-    {
-      onSuccess: () => {
-        setCompletedSteps((prev) => new Set([...prev, currentStepIndex]))
       },
       onError: (err) => setError(err.message),
     },
@@ -222,30 +179,20 @@ export function QualityPlanVersionWizard({
   }, [versionData])
 
   useEffect(() => {
-    if (!versionId) return
-    const csrfTokenPromise = getCsrfToken()
-    csrfTokenPromise.then((csrf) => {
-      apiRequest<QualityInspectionPlanCapabilities>({
-        path: `/logistics/quality-inspection-plans/${planId}/capabilities`,
-        method: 'GET',
-        headers: { 'X-CSRF-Token': csrf },
-      }).then((caps) => setCapabilities(caps)).catch(() => {})
-    }).catch(() => {})
-  }, [versionId, planId])
+    if (!selectedControlId && controlsData?.[0]) {
+      setSelectedControlId(controlsData[0].control_id)
+    }
+  }, [controlsData, selectedControlId])
 
   const handleNext = useCallback(() => {
     setError(null)
-    if (currentStepIndex === 0 && !versionId) {
+    if (currentStepIndex === 1 && !versionId) {
       createVersionMutation.mutate(formData)
-      return
-    }
-    if (currentStepIndex <= 1) {
-      updateVersionMutation.mutate(formData)
       return
     }
     setCompletedSteps((prev) => new Set([...prev, currentStepIndex]))
     setCurrentStepIndex((prev) => Math.min(prev + 1, WIZARD_STEPS.length - 1))
-  }, [currentStepIndex, versionId, formData, createVersionMutation, updateVersionMutation])
+  }, [currentStepIndex, versionId, formData, createVersionMutation])
 
   const handlePrevious = useCallback(() => {
     setError(null)
@@ -253,19 +200,14 @@ export function QualityPlanVersionWizard({
   }, [])
 
   const handleSubmit = useCallback(() => {
-    if (currentStep.key === 'validation') {
-      validateMutation.mutate()
-    } else {
-      onComplete()
-    }
-  }, [currentStep.key, validateMutation, onComplete])
+    onComplete()
+  }, [onComplete])
 
   const handleScopesRefresh = useCallback(() => { refetchScopes() }, [refetchScopes])
   const handleControlsRefresh = useCallback(() => { refetchControls() }, [refetchControls])
 
   const isCreatingVersion = createVersionMutation.isPending
-  const isUpdatingVersion = updateVersionMutation.isPending
-  const isSaving = isCreatingVersion || isUpdatingVersion
+  const isSaving = isCreatingVersion
   const isFirstStep = currentStepIndex === 0
   const isLastStep = currentStepIndex === WIZARD_STEPS.length - 1
   const canGoNext = !isSaving && !isLastStep
@@ -300,7 +242,7 @@ export function QualityPlanVersionWizard({
             {!versionId && (
               <div className="rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
                 <p className="text-xs text-indigo-700">
-                  Se creara una nueva version del plan de inspeccion al continuar.
+                  Complete la vigencia y prioridad en el siguiente paso para crear la nueva version.
                 </p>
               </div>
             )}
@@ -324,6 +266,7 @@ export function QualityPlanVersionWizard({
                 <input
                   type="date"
                   value={formData.valid_from}
+                  disabled={Boolean(versionId)}
                   onChange={(e) => setFormData((p) => ({ ...p, valid_from: e.target.value }))}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 focus:border-[#1F4E6D] focus:outline-none focus:ring-1 focus:ring-[#1F4E6D]"
                 />
@@ -335,6 +278,7 @@ export function QualityPlanVersionWizard({
                 <input
                   type="date"
                   value={formData.valid_until}
+                  disabled={Boolean(versionId)}
                   onChange={(e) => setFormData((p) => ({ ...p, valid_until: e.target.value }))}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 focus:border-[#1F4E6D] focus:outline-none focus:ring-1 focus:ring-[#1F4E6D]"
                 />
@@ -348,6 +292,7 @@ export function QualityPlanVersionWizard({
                   min={0}
                   max={100}
                   value={formData.priority}
+                  disabled={Boolean(versionId)}
                   onChange={(e) => setFormData((p) => ({ ...p, priority: Number(e.target.value) }))}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 focus:border-[#1F4E6D] focus:outline-none focus:ring-1 focus:ring-[#1F4E6D]"
                 />
@@ -376,242 +321,89 @@ export function QualityPlanVersionWizard({
         )
 
       case 'scopes':
-        if (!versionId) return <ErrorPanel message="Primero debe crear la version." onRetry={() => {}} />
+        if (!versionId) return <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">Primero debe crear la version.</div>
         if (scopesLoading) return <SkeletonRows rows={4} />
         return (
           <QualityPlanScopesEditor
-            versionId={versionId}
+            planId={planId}
             scopes={scopesData ?? []}
-            capabilities={capabilities ?? {
-              plan_id: planId,
-              can_view: true,
-              can_create: true,
-              can_update: true,
-              can_clone: true,
-              can_archive: true,
-              can_create_version: true,
-              can_manage_scopes: true,
-              can_manage_controls: true,
-              can_manage_tolerances: true,
-              can_manage_sampling: true,
-              can_manage_certificates: true,
-              can_validate: true,
-              can_detect_conflicts: true,
-              can_activate: true,
-              can_retire: true,
-              can_preview: true,
-              can_resolve: true,
-              can_view_history: true,
-              can_view_integrity: true,
-              can_view_future_inspection_template: true,
-            }}
+            capabilities={capabilities}
             onRefresh={handleScopesRefresh}
           />
         )
 
       case 'controls':
-        if (!versionId) return <ErrorPanel message="Primero debe crear la version." onRetry={() => {}} />
+        if (!versionId) return <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">Primero debe crear la version.</div>
         if (controlsLoading) return <SkeletonRows rows={4} />
         return (
           <QualityControlsEditor
-            versionId={versionId}
+            planId={planId}
             controls={controlsData ?? []}
-            capabilities={capabilities ?? {
-              plan_id: planId,
-              can_view: true,
-              can_create: true,
-              can_update: true,
-              can_clone: true,
-              can_archive: true,
-              can_create_version: true,
-              can_manage_scopes: true,
-              can_manage_controls: true,
-              can_manage_tolerances: true,
-              can_manage_sampling: true,
-              can_manage_certificates: true,
-              can_validate: true,
-              can_detect_conflicts: true,
-              can_activate: true,
-              can_retire: true,
-              can_preview: true,
-              can_resolve: true,
-              can_view_history: true,
-              can_view_integrity: true,
-              can_view_future_inspection_template: true,
-            }}
+            capabilities={capabilities}
             onRefresh={handleControlsRefresh}
           />
         )
 
       case 'tolerances':
-        if (tolerancesLoading) return <SkeletonRows rows={4} />
-        const tolerances = tolerancesData?.items ?? []
+        if (controlsLoading) return <SkeletonRows rows={4} />
         return (
           <div className="space-y-4">
             <div>
               <h3 className="text-sm font-bold text-slate-800">Tolerancias</h3>
               <p className="text-xs text-slate-500">
-                Gestione las tolerancias disponibles para asociar a los controles de este plan.
+                Las tolerancias pertenecen a un control concreto; el backend no expone un catalogo global.
               </p>
             </div>
-            {tolerances.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-                <p className="text-xs text-slate-500">No hay tolerancias disponibles.</p>
-                <p className="mt-1 text-[10px] text-slate-400">Cree tolerancias desde el modulo de Tolerancias.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {tolerances.map((tol) => (
-                  <div
-                    key={tol.tolerance_id}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
-                  >
-                    <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                      {tol.tolerance_type}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-slate-800">{tol.code}</span>
-                        <span className="text-xs text-slate-600 truncate">{tol.name}</span>
-                      </div>
-                      <p className="text-[10px] text-slate-400">
-                        {tol.dimension} — {tol.target_value}
-                        {tol.min_value != null && ` | Min: ${tol.min_value}`}
-                        {tol.max_value != null && ` | Max: ${tol.max_value}`}
-                      </p>
-                    </div>
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        tol.status === 'ACTIVE'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {tol.status === 'ACTIVE' ? 'Activa' : 'Retirada'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <p className="text-[10px] text-slate-400">
-              Para asociar una tolerancia a un control, edite el control en el paso "Controles" y seleccione la tolerancia.
-            </p>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
+              Gestion no disponible dentro del wizard. Use la pantalla de Tolerancias, seleccione un control real y opere sobre ese recurso.
+            </div>
           </div>
         )
 
       case 'sampling':
-        if (samplingLoading) return <SkeletonRows rows={4} />
-        const samplingPlans = samplingData?.items ?? []
+        if (controlsLoading) return <SkeletonRows rows={4} />
         return (
           <div className="space-y-4">
             <div>
               <h3 className="text-sm font-bold text-slate-800">Planes de muestreo</h3>
               <p className="text-xs text-slate-500">
-                Gestione los planes de muestreo disponibles para asociar a los controles.
+                Los planes de muestreo pertenecen a un control concreto; el backend no expone un catalogo global.
               </p>
             </div>
-            {samplingPlans.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-                <p className="text-xs text-slate-500">No hay planes de muestreo disponibles.</p>
-                <p className="mt-1 text-[10px] text-slate-400">Cree planes desde el modulo de Muestreo.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {samplingPlans.map((plan) => (
-                  <div
-                    key={plan.sampling_id}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
-                  >
-                    <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                      {plan.sampling_type}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-slate-800">{plan.code}</span>
-                        <span className="text-xs text-slate-600 truncate">{plan.name}</span>
-                      </div>
-                      <p className="text-[10px] text-slate-400">
-                        Unidad: {plan.sample_unit}
-                        {plan.fixed_quantity != null && ` | Cantidad: ${plan.fixed_quantity}`}
-                        {plan.percentage != null && ` | Porcentaje: ${plan.percentage}%`}
-                        {plan.minimum != null && ` | Min: ${plan.minimum}`}
-                        {plan.maximum != null && ` | Max: ${plan.maximum}`}
-                      </p>
-                    </div>
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        plan.status === 'ACTIVE'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {plan.status === 'ACTIVE' ? 'Activo' : 'Retirado'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <p className="text-[10px] text-slate-400">
-              Para asociar un plan de muestreo a un control, edite el control en el paso "Controles".
-            </p>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
+              Gestion no disponible dentro del wizard. Use la pantalla de Muestreo, seleccione un control real y opere sobre ese recurso.
+            </div>
           </div>
         )
 
       case 'certificates':
-        if (certificatesLoading) return <SkeletonRows rows={4} />
-        const certificates = certificatesData?.items ?? []
+        if (controlsLoading) return <SkeletonRows rows={4} />
         return (
           <div className="space-y-4">
             <div>
               <h3 className="text-sm font-bold text-slate-800">Requisitos de certificados</h3>
               <p className="text-xs text-slate-500">
-                Gestione los requisitos de certificados disponibles para asociar a los controles.
+                Seleccione el control al que pertenecen los requisitos.
               </p>
             </div>
-            {certificates.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-                <p className="text-xs text-slate-500">No hay requisitos de certificados disponibles.</p>
-                <p className="mt-1 text-[10px] text-slate-400">Cree requisitos desde el modulo de Certificados.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {certificates.map((cert) => (
-                  <div
-                    key={cert.requirement_id}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-slate-800">{cert.code}</span>
-                        <span className="text-xs text-slate-600 truncate">{cert.name}</span>
-                        {cert.required && (
-                          <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
-                            Requerido
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-slate-400">
-                        {cert.document_type_name ?? 'Sin tipo'}
-                        {cert.issuer_pattern && ` | Emisor: ${cert.issuer_pattern}`}
-                        {cert.minimum_validity_days != null && ` | Validez min: ${cert.minimum_validity_days} dias`}
-                      </p>
-                    </div>
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        cert.status === 'ACTIVE'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {cert.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </div>
+            <label className="block text-xs font-semibold text-slate-600">
+              Control
+              <select
+                value={selectedControlId}
+                onChange={(event) => setSelectedControlId(event.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
+              >
+                <option value="">Seleccione un control</option>
+                {(controlsData ?? []).map((control) => (
+                  <option key={control.control_id} value={control.control_id}>{control.code} — {control.name}</option>
                 ))}
-              </div>
-            )}
-            <p className="text-[10px] text-slate-400">
-              Para asociar un certificado a un control, edite el control en el paso "Controles".
-            </p>
+              </select>
+            </label>
+            <QualityCertificateRequirementsEditor
+              controlId={selectedControlId || null}
+              canManage={capabilities.can_manage_certificates}
+              onRefresh={handleControlsRefresh}
+            />
           </div>
         )
 
@@ -755,27 +547,27 @@ export function QualityPlanVersionWizard({
             )}
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               <div className="rounded-xl border border-slate-200 bg-white p-4 text-center">
-                <p className="text-2xl font-bold text-slate-800">{versionData?.scope_count ?? 0}</p>
+                <p className="text-2xl font-bold text-slate-800">{versionData ? versionData.scope_count : 'No disponible'}</p>
                 <p className="text-[10px] font-semibold uppercase text-slate-500">Ambitos</p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-white p-4 text-center">
-                <p className="text-2xl font-bold text-slate-800">{versionData?.control_count ?? 0}</p>
+                <p className="text-2xl font-bold text-slate-800">{versionData ? versionData.control_count : 'No disponible'}</p>
                 <p className="text-[10px] font-semibold uppercase text-slate-500">Controles</p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-white p-4 text-center">
-                <p className="text-2xl font-bold text-slate-800">{versionData?.tolerance_count ?? 0}</p>
+                <p className="text-2xl font-bold text-slate-800">{versionData ? versionData.tolerance_count : 'No disponible'}</p>
                 <p className="text-[10px] font-semibold uppercase text-slate-500">Tolerancias</p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-white p-4 text-center">
-                <p className="text-2xl font-bold text-slate-800">{versionData?.sampling_count ?? 0}</p>
+                <p className="text-2xl font-bold text-slate-800">{versionData ? versionData.sampling_count : 'No disponible'}</p>
                 <p className="text-[10px] font-semibold uppercase text-slate-500">Muestreo</p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-white p-4 text-center">
-                <p className="text-2xl font-bold text-slate-800">{versionData?.certificate_count ?? 0}</p>
+                <p className="text-2xl font-bold text-slate-800">{versionData ? versionData.certificate_count : 'No disponible'}</p>
                 <p className="text-[10px] font-semibold uppercase text-slate-500">Certificados</p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-white p-4 text-center">
-                <p className="text-2xl font-bold text-slate-800">{versionData?.conflict_count ?? 0}</p>
+                <p className="text-2xl font-bold text-slate-800">{versionData ? versionData.conflict_count : 'No disponible'}</p>
                 <p className="text-[10px] font-semibold uppercase text-slate-500">Conflictos</p>
               </div>
             </div>
@@ -789,17 +581,17 @@ export function QualityPlanVersionWizard({
             <div>
               <h3 className="text-sm font-bold text-slate-800">Validacion</h3>
               <p className="text-xs text-slate-500">
-                Valide la version para verificar que cumple con todos los requisitos.
+                Valide el plan para verificar que cumple con todos los requisitos.
               </p>
             </div>
             <QualityPlanValidationPanel
               validation={validationData ?? null}
-              onValidate={() => validateMutation.mutate()}
+              onValidate={() => void refetchValidation()}
             />
             {validationData && validationData.status === 'VALID' && (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                 <p className="text-xs font-bold text-emerald-700">
-                  La version esta lista para ser activada.
+                  El plan cumple las reglas de validacion para esta version.
                 </p>
                 <p className="mt-1 text-[10px] text-emerald-600">
                   Puede proceder a activar la version desde el panel de versiones.
@@ -908,9 +700,8 @@ export function QualityPlanVersionWizard({
               size="small"
               onClick={handleSubmit}
               disabled={!canSubmit}
-              isLoading={validateMutation.isPending}
             >
-              {validationData?.status === 'VALID' ? 'Finalizar' : 'Validar'}
+              Finalizar
             </Button>
           ) : (
             <Button
@@ -920,7 +711,7 @@ export function QualityPlanVersionWizard({
               disabled={!canGoNext}
               isLoading={isSaving}
             >
-              {isFirstStep && !versionId ? 'Crear version' : 'Siguiente'}
+              {currentStepIndex === 1 && !versionId ? 'Crear version' : 'Siguiente'}
             </Button>
           )}
         </div>

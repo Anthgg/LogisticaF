@@ -1,4 +1,5 @@
 import { apiRequest, getCsrfToken } from '../../../api/api-client'
+import { contractGap } from '../../../api/contract-availability'
 import type {
   QuarantineRejectionAuthorization,
   RequestQuarantineRejectionRequest,
@@ -17,39 +18,20 @@ async function withCsrf(): Promise<Record<string, string>> {
   return { 'X-CSRF-Token': token }
 }
 
-function buildQuery(params: Record<string, unknown>): string {
-  const entries: [string, string][] = []
-  for (const [k, v] of Object.entries(params)) {
-    if (v === undefined || v === null) continue
-    if (Array.isArray(v)) {
-      for (const item of v) entries.push([k, String(item)])
-    } else {
-      entries.push([k, String(v)])
-    }
-  }
-  return entries.length ? `?${new URLSearchParams(entries).toString()}` : ''
-}
-
 export const quarantineRejectionApi = {
-  /** GET /quarantine-rejection-authorizations */
-  async list(query?: Record<string, unknown>): Promise<QuarantineRejectionAuthorization[]> {
-    return apiRequest({ path: `${BASE}${query ? buildQuery(query) : ''}`, method: 'GET' })
+  /** Sin contrato global: las autorizaciones se listan dentro de un caso. */
+  async list(_query?: Record<string, unknown>): Promise<never> {
+    throw contractGap('El listado global de autorizaciones de rechazo')
   },
 
-  /** GET /quarantine-rejection-authorizations/{authorizationId} */
-  async get(authorizationId: string): Promise<QuarantineRejectionAuthorization> {
-    return apiRequest({ path: `${BASE}/${authorizationId}`, method: 'GET' })
+  /** Sin contrato: no existe detalle individual de una autorización de rechazo. */
+  async get(_authorizationId: string): Promise<never> {
+    throw contractGap('El detalle individual de una autorización de rechazo')
   },
 
-  /** POST /quarantine-rejection-authorizations */
-  async create(data: RequestQuarantineRejectionRequest): Promise<QuarantineRejectionAuthorization> {
-    const csrf = await withCsrf()
-    return apiRequest({
-      path: `${BASE}`,
-      method: 'POST',
-      headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: data,
-    })
+  /** Sin contrato global: la creación requiere el caso de cuarentena. */
+  async create(_data: RequestQuarantineRejectionRequest): Promise<never> {
+    throw contractGap('Crear una autorización de rechazo sin caso')
   },
 
   /** POST /quality-quarantine-cases/{caseId}/rejection-authorizations */
@@ -63,15 +45,9 @@ export const quarantineRejectionApi = {
     })
   },
 
-  /** POST /quarantine-rejection-authorizations/{rejectionId}/approve */
-  async approveAuthorization(rejectionId: string, data?: { decision?: string; comments?: string }): Promise<QuarantineRejectionAuthorization> {
-    const csrf = await withCsrf()
-    return apiRequest({
-      path: `${BASE}/${rejectionId}/approve`,
-      method: 'POST',
-      headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: data ?? {},
-    })
+  /** Sin contrato: la única transición publicada después de crear es execute. */
+  async approveAuthorization(_rejectionId: string, _data?: { decision?: string; comments?: string }): Promise<never> {
+    throw contractGap('Aprobar por separado una autorización de rechazo')
   },
 
   /** POST /quarantine-rejection-authorizations/{rejectionId}/execute */

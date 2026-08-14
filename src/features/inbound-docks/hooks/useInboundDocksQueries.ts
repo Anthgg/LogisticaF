@@ -17,7 +17,6 @@ import type {
   WarehouseDockBlackout,
   WarehouseDockOperatingWindow,
   InboundDockAssignment,
-  DockAssignmentPlan,
   DockAssignmentMetrics,
   DockOperationalTimes,
   DockOperationIntegrity,
@@ -192,14 +191,6 @@ export function useInboundDockAssignment(assignmentId: string | null | undefined
   )
 }
 
-export function useDockAssignmentPlan(planId: string | null | undefined) {
-  return useQuery<DockAssignmentPlan>(
-    ['dock-assignment-plan', planId],
-    planId ? `/logistics/inbound/dock-assignment-plans/${planId}` : '',
-    undefined,
-    { enabled: Boolean(planId), refetchIntervalMs: FIVE_SECONDS },
-  )
-}
 
 export function useDockAssignmentMetrics(assignmentId: string | null | undefined) {
   return useQuery<DockAssignmentMetrics>(

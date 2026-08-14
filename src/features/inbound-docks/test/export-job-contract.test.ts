@@ -53,6 +53,27 @@ describe('job de exportación de muelles', () => {
     expect(requestSpy).not.toHaveBeenCalled()
   })
 
+  it('consulta cuando enabled cambia de false a true con la misma clave', async () => {
+    requestSpy.mockResolvedValue({ id: JOB_ID, status: 'READY' } as never)
+
+    const { rerender } = renderHook(
+      ({ enabled }) =>
+        useQuery<DockOperationExportJob>(
+          ['dock-export-job', JOB_ID],
+          `${DOCK_OPERATION_EXPORTS_BASE}/${JOB_ID}`,
+          undefined,
+          { enabled },
+        ),
+      { initialProps: { enabled: false } },
+    )
+
+    expect(requestSpy).not.toHaveBeenCalled()
+    rerender({ enabled: true })
+
+    await vi.waitFor(() => expect(requestSpy).toHaveBeenCalledTimes(1))
+    expect(lastCall().path).toBe(`${DOCK_OPERATION_EXPORTS_BASE}/${JOB_ID}`)
+  })
+
   it('nunca se sondea con path vacío aunque esté habilitado', async () => {
     renderHook(() =>
       useQuery<DockOperationExportJob>(['dock-export-job', JOB_ID], '', undefined, {

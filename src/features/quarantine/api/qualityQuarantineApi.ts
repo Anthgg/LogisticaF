@@ -1,4 +1,5 @@
 import { apiRequest, getCsrfToken } from '../../../api/api-client'
+import { contractGap } from '../../../api/contract-availability'
 import type {
   PutawayPreparation,
   FutureInventoryMovementPreparation,
@@ -6,7 +7,6 @@ import type {
   FutureTraceabilityPreparation,
   CreateQuarantineCaseRequest,
   QualityReinspectionRequest,
-  QuarantinePlacement,
 } from '../types/quarantine'
 import type {
   MaterializeQualityInspectionRequestApi,
@@ -184,15 +184,12 @@ export const qualityQuarantineApi = {
     })
   },
 
-  /** POST /quality-quarantine-placements/{placementId}/confirm */
-  async confirmPlacement(placementId: string): Promise<QuarantinePlacement> {
-    const csrf = await withCsrf()
-    return apiRequest({
-      path: `/logistics/quality-quarantine/placements/${placementId}/confirm`,
-      method: 'POST',
-      headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: {},
-    })
+  /**
+   * Sin contrato: el backend no publica placements de cuarentena. El caso se
+   * gestiona con decisiones y autorizaciones, no confirmando una ubicación.
+   */
+  async confirmPlacement(_placementId: string): Promise<never> {
+    throw contractGap('Confirmar la ubicación de cuarentena')
   },
 
   /** POST /quality-quarantine-cases/{caseId}/request-reinspection */

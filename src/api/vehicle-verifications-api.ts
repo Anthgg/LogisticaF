@@ -1,5 +1,5 @@
-import { apiRequest, getCsrfToken } from './api-client'
-import { ApiRequestError } from '../types/api'
+import { apiRequest, getCsrfToken } from './api-client'
+import { contractGap } from './contract-availability'
 import type { PaginatedResponse } from '../types/logistics-resources'
 import type {
   AssistedVehicleVerification,
@@ -29,75 +29,33 @@ import type {
 export const vehicleVerificationsApi = {
   // ── Verifications List & Detail ───────────────────────────────────────────
 
+  /**
+   * El contrato solo permite listar las verificaciones **de un vehiculo**. Sin
+   * `vehicle_id` no hay consulta posible: se falla en vez de devolver una lista
+   * vacia, que se leeria como "este vehiculo no tiene verificaciones".
+   */
   async list(query?: VehicleVerificationListQuery): Promise<PaginatedResponse<VehicleVerificationSummary>> {
-    if (query?.vehicle_id) {
-      try {
-        const items = await this.listByVehicle(query.vehicle_id)
-        return {
-          items: items as unknown as VehicleVerificationSummary[],
-          page: 1,
-          page_size: items.length,
-          total: items.length,
-          total_pages: 1,
-        }
-      } catch {
-        return { items: [], page: 1, page_size: 20, total: 0, total_pages: 1 }
-      }
+    if (!query?.vehicle_id) {
+      throw contractGap('El listado global de verificaciones')
     }
-    return { items: [], page: 1, page_size: 20, total: 0, total_pages: 1 }
+    const items = await this.listByVehicle(query.vehicle_id)
+    return {
+      items: items as unknown as VehicleVerificationSummary[],
+      page: 1,
+      page_size: items.length,
+      total: items.length,
+      total_pages: 1,
+    }
   },
 
-  async get(id: string): Promise<VehicleVerification> {
-    try {
-      // NOT_IN_CONTRACT_0.9.3: GET /logistics/vehicle-verifications/{id}
-      return await apiRequest({ path: `/logistics/vehicle-verifications/${id}` })
-    } catch {
-      return {
-        id,
-        vehicle_id: '',
-        vehicle_internal_code: '',
-        plate_number: '',
-        domain: 'SOAT',
-        domain_label: 'SOAT',
-        status: 'COMPLETED',
-        result_status: 'VALIDATED',
-        source_type: 'SUNARP',
-        source_name: 'SUNARP',
-        method: 'AUTHORIZED_API',
-        source_date: null,
-        requested_at: new Date().toISOString(),
-        completed_at: new Date().toISOString(),
-        expires_at: null,
-        freshness: 'FRESH',
-        days_until_expiration: null,
-        confidence_score: 1,
-        provenance_fields: [],
-        evidences: [],
-        conflicts_count: 0,
-        warnings: [],
-        requested_by_user_name: 'System',
-        capabilities: {
-          can_view_verifications: true,
-          can_request_verification: true,
-          can_retry_verification: true,
-          can_revoke_verification: true,
-          can_view_sensitive_result: true,
-          can_create_assisted_verification: true,
-          can_approve_assisted_verification: true,
-          can_apply_result: true,
-          can_resolve_conflict: true,
-          can_view_evidence: true,
-          can_manage_evidence: true,
-          can_view_sources: true,
-          can_manage_sources: true,
-          can_view_requirements: true,
-          can_manage_requirements: true,
-          can_activate_requirements: true,
-          can_view_review_tasks: true,
-        },
-        history: [],
-      }
-    }
+  /**
+   * El contrato no publica el detalle por `verification_id`: la verificacion
+   * solo es alcanzable desde su vehiculo (`listByVehicle`). Devolver un objeto
+   * inventado aqui haria pasar por verificada una unidad que nadie verifico,
+   * asi que se falla de forma explicita.
+   */
+  async get(_id: string): Promise<VehicleVerification> {
+    throw contractGap('El detalle de una verificacion por identificador')
   },
 
   async getStats(): Promise<VehicleVerificationStats> {
@@ -105,10 +63,7 @@ export const vehicleVerificationsApi = {
     // param UUID (422). Se falla explicitamente en vez de devolver ceros: un
     // agregado en cero se lee como dato confirmado, y aqui no hay dato. El
     // consumidor ya trata el fallo mostrando la seccion como no disponible.
-    throw new ApiRequestError('El resumen no esta disponible en el contrato actual.', {
-      code: 'NOT_IMPLEMENTED_IN_CONTRACT',
-      status: 501,
-    })
+    throw contractGap('El resumen de verificaciones')
   },
 
   async listByVehicle(vehicleId: string): Promise<VehicleVerification[]> {
@@ -116,7 +71,8 @@ export const vehicleVerificationsApi = {
       path: `/logistics/vehicles/${vehicleId}/verifications`,
     })
     if (Array.isArray(res)) return res
-    return (res && 'items' in res ? res.items : []) ?? []
+    if (res && 'items' in res && Array.isArray(res.items)) return res.items
+    throw new Error('El backend devolvió un listado de verificaciones con formato inválido.')
   },
 
   async getVehicleCompliance(vehicleId: string): Promise<VehicleVerificationCompliance> {
@@ -135,16 +91,16 @@ export const vehicleVerificationsApi = {
     })
   },
 
-  async retryVerification(id: string): Promise<VehicleVerification> {
-    return this.get(id)
+  async retryVerification(_id: string): Promise<VehicleVerification> {
+    throw contractGap('Reintentar una verificacion')
   },
 
-  async cancelVerification(id: string, _reason: string): Promise<VehicleVerification> {
-    return this.get(id)
+  async cancelVerification(_id: string, _reason: string): Promise<VehicleVerification> {
+    throw contractGap('Cancelar una verificacion')
   },
 
-  async revokeVerification(id: string, _reason: string): Promise<VehicleVerification> {
-    return this.get(id)
+  async revokeVerification(_id: string, _reason: string): Promise<VehicleVerification> {
+    throw contractGap('Revocar una verificacion')
   },
 
   async applyVerification(id: string, data: VehicleVerificationApplyRequest): Promise<VehicleVerification> {
@@ -157,28 +113,18 @@ export const vehicleVerificationsApi = {
     })
   },
 
-  async getEvidenceMetadata(id: string, evidenceId: string): Promise<VehicleVerificationEvidence> {
-    try {
-      // NOT_IN_CONTRACT_0.9.3: GET /logistics/vehicle-verifications/{id}/evidences/{evidenceId}
-      return await apiRequest({ path: `/logistics/vehicle-verifications/${id}/evidences/${evidenceId}` })
-    } catch {
-      return {
-        id: evidenceId,
-        evidence_type: 'DOCUMENT',
-        file_name: 'document.pdf',
-        file_reference_id: null,
-        partial_hash: '',
-        uploaded_by_user_name: 'System',
-        created_at: new Date().toISOString(),
-        notes: null,
-      }
-    }
+  /**
+   * La evidencia viaja embebida en la verificacion (`evidences`); el contrato
+   * no publica un recurso de metadatos por evidencia.
+   */
+  async getEvidenceMetadata(_id: string, _evidenceId: string): Promise<VehicleVerificationEvidence> {
+    throw contractGap('Los metadatos de una evidencia de verificacion')
   },
 
   // ── Assisted Verifications ────────────────────────────────────────────────
 
   async listAssistedVerifications(): Promise<AssistedVehicleVerification[]> {
-    return []
+    throw contractGap('El listado de verificaciones asistidas')
   },
 
   async createAssistedVerification(data: AssistedVehicleVerificationCreate): Promise<AssistedVehicleVerification> {
@@ -191,34 +137,12 @@ export const vehicleVerificationsApi = {
     })
   },
 
-  async updateAssistedVerification(id: string, data: Partial<AssistedVehicleVerificationCreate>): Promise<AssistedVehicleVerification> {
-    return {
-      id,
-      vehicle_id: data.vehicle_id ?? '',
-      plate_number: data.plate_number ?? '',
-      domain: data.domain ?? 'SOAT',
-      source_type: data.source_type ?? 'SUNARP',
-      official_reference_number: data.official_reference_number ?? '',
-      observation_timestamp: data.observation_timestamp ?? new Date().toISOString(),
-      observed_plate: data.observed_plate ?? '',
-      observed_owner_name: data.observed_owner_name ?? null,
-      observed_make_name: data.observed_make_name ?? null,
-      observed_model_name: data.observed_model_name ?? null,
-      observed_year: data.observed_year ?? null,
-      observed_status: data.observed_status ?? '',
-      observed_expiration_date: data.observed_expiration_date ?? null,
-      result_status: data.result_status ?? 'VALIDATED',
-      notes: data.notes ?? '',
-      created_by_user_name: 'System',
-      review_status: 'PENDING_APPROVAL',
-      approved_by_user_name: null,
-      approved_at: null,
-      created_at: new Date().toISOString(),
-    }
+  async updateAssistedVerification(_id: string, _data: Partial<AssistedVehicleVerificationCreate>): Promise<never> {
+    throw contractGap('Editar una verificación asistida')
   },
 
-  async submitAssistedVerification(id: string): Promise<AssistedVehicleVerification> {
-    return this.updateAssistedVerification(id, {})
+  async submitAssistedVerification(_id: string): Promise<never> {
+    throw contractGap('Enviar una verificación asistida')
   },
 
   async approveAssistedVerification(id: string, notes?: string): Promise<AssistedVehicleVerification> {
@@ -231,206 +155,100 @@ export const vehicleVerificationsApi = {
     })
   },
 
-  async rejectAssistedVerification(id: string, _reason: string): Promise<AssistedVehicleVerification> {
-    return this.updateAssistedVerification(id, {})
+  async rejectAssistedVerification(_id: string, _reason: string): Promise<never> {
+    throw contractGap('Rechazar una verificación asistida')
   },
 
   // ── Sources & Health ──────────────────────────────────────────────────────
 
   async listSourcesHealth(): Promise<VehicleVerificationSourceHealth[]> {
-    try {
-      const res = await apiRequest<VehicleVerificationSourceHealth[] | { items: VehicleVerificationSourceHealth[] }>({
-        path: '/logistics/vehicle-verification-sources',
-      })
-      if (Array.isArray(res)) return res
-      return (res && 'items' in res ? res.items : []) ?? []
-    } catch {
-      return []
-    }
+    const res = await apiRequest<VehicleVerificationSourceHealth[] | { items: VehicleVerificationSourceHealth[] }>({
+      path: '/logistics/vehicle-verification-sources',
+    })
+    if (Array.isArray(res)) return res
+    if (res && 'items' in res && Array.isArray(res.items)) return res.items
+    throw new Error('El backend devolvió las fuentes de verificación con formato inválido.')
   },
 
-  async getSource(sourceType: VehicleVerificationSourceType): Promise<VehicleVerificationSourceHealth> {
-    return {
-      id: sourceType,
-      source_type: sourceType,
-      source_name: sourceType,
-      authority_name: sourceType,
-      supported_domains: ['SOAT'],
-      method: 'AUTHORIZED_API',
-      authorization_status: 'AUTHORIZED',
-      operational_status: 'OPERATIONAL',
-      last_successful_call_at: new Date().toISOString(),
-      last_failure_at: null,
-      consecutive_failures_count: 0,
-      latency_ms: 100,
-      circuit_breaker_open: false,
-      rate_limit_per_minute: 60,
-    }
+  async getSource(_sourceType: VehicleVerificationSourceType): Promise<never> {
+    throw contractGap('El detalle individual de una fuente de verificación')
   },
 
-  async checkSourceHealth(sourceType: VehicleVerificationSourceType): Promise<VehicleVerificationSourceHealth> {
-    return this.getSource(sourceType)
+  async checkSourceHealth(_sourceType: VehicleVerificationSourceType): Promise<never> {
+    throw contractGap('La comprobación individual de una fuente de verificación')
   },
 
-  async enableSource(sourceType: VehicleVerificationSourceType, _reason: string): Promise<VehicleVerificationSourceHealth> {
-    return this.getSource(sourceType)
+  async enableSource(_sourceType: VehicleVerificationSourceType, _reason: string): Promise<never> {
+    throw contractGap('Habilitar una fuente de verificación')
   },
 
-  async disableSource(sourceType: VehicleVerificationSourceType, _reason: string): Promise<VehicleVerificationSourceHealth> {
-    return this.getSource(sourceType)
+  async disableSource(_sourceType: VehicleVerificationSourceType, _reason: string): Promise<never> {
+    throw contractGap('Deshabilitar una fuente de verificación')
   },
 
   // ── Conflicts ─────────────────────────────────────────────────────────────
 
   async listConflicts(_status?: string): Promise<VehicleVerificationConflict[]> {
-    return []
+    throw contractGap('El listado de conflictos de verificaciones vehiculares')
   },
 
-  async getConflict(conflictId: string): Promise<VehicleVerificationConflict> {
-    return {
-      id: conflictId,
-      verification_id: '',
-      vehicle_id: '',
-      plate_number: '',
-      domain: 'SOAT',
-      field_name: '',
-      field_label: '',
-      master_value: '',
-      verified_value: '',
-      source_name: '',
-      source_date: new Date().toISOString(),
-      severity: 'MEDIUM',
-      status: 'OPEN',
-      resolution_notes: null,
-      resolved_by_user_name: null,
-      resolved_at: null,
-      created_at: new Date().toISOString(),
-    }
+  async getConflict(_conflictId: string): Promise<never> {
+    throw contractGap('El detalle de un conflicto de verificación')
   },
 
-  async startConflictReview(conflictId: string, _data: VehicleVerificationConflictReviewStart): Promise<VehicleVerificationConflict> {
-    return this.getConflict(conflictId)
+  async startConflictReview(_conflictId: string, _data: VehicleVerificationConflictReviewStart): Promise<never> {
+    throw contractGap('Iniciar la revisión de un conflicto de verificación')
   },
 
-  async resolveConflict(conflictId: string, _data: VehicleVerificationConflictResolve): Promise<VehicleVerificationConflict> {
-    return this.getConflict(conflictId)
+  async resolveConflict(_conflictId: string, _data: VehicleVerificationConflictResolve): Promise<never> {
+    throw contractGap('Resolver un conflicto de verificación')
   },
 
-  async dismissConflict(conflictId: string, _reason: string): Promise<VehicleVerificationConflict> {
-    return this.getConflict(conflictId)
+  async dismissConflict(_conflictId: string, _reason: string): Promise<never> {
+    throw contractGap('Descartar un conflicto de verificación')
   },
 
   // ── Requirements & Policies ───────────────────────────────────────────────
 
   async listRequirements(): Promise<VehicleVerificationRequirement[]> {
-    return []
+    throw contractGap('El listado de requisitos de verificación vehicular')
   },
 
-  async createRequirement(data: VehicleVerificationRequirementCreate): Promise<VehicleVerificationRequirement> {
-    return {
-      id: `req-${Date.now()}`,
-      vehicle_type: data.vehicle_type,
-      body_type: data.body_type ?? null,
-      ownership_type: data.ownership_type ?? null,
-      carrier_category: data.carrier_category ?? null,
-      domain: data.domain,
-      preferred_source: data.preferred_source,
-      is_mandatory: data.is_mandatory ?? true,
-      is_blocking: data.is_blocking ?? false,
-      max_age_days: data.max_age_days ?? 30,
-      warning_days: data.warning_days ?? 7,
-      min_confidence_score: data.min_confidence_score ?? 1,
-      allow_assisted_validation: data.allow_assisted_validation ?? true,
-      evidence_required: data.evidence_required ?? false,
-      status: 'ACTIVE',
-      created_at: new Date().toISOString(),
-    }
+  async createRequirement(_data: VehicleVerificationRequirementCreate): Promise<never> {
+    throw contractGap('Crear un requisito de verificación vehicular')
   },
 
-  async updateRequirement(id: string, data: VehicleVerificationRequirementUpdate): Promise<VehicleVerificationRequirement> {
-    return {
-      id,
-      vehicle_type: 'TRUCK',
-      body_type: null,
-      ownership_type: null,
-      carrier_category: null,
-      domain: 'SOAT',
-      preferred_source: data.preferred_source ?? 'SUNARP',
-      is_mandatory: data.is_mandatory ?? true,
-      is_blocking: data.is_blocking ?? false,
-      max_age_days: data.max_age_days ?? 30,
-      warning_days: data.warning_days ?? 7,
-      min_confidence_score: data.min_confidence_score ?? 1,
-      allow_assisted_validation: data.allow_assisted_validation ?? true,
-      evidence_required: data.evidence_required ?? false,
-      status: 'ACTIVE',
-      created_at: new Date().toISOString(),
-    }
+  async updateRequirement(_id: string, _data: VehicleVerificationRequirementUpdate): Promise<never> {
+    throw contractGap('Editar un requisito de verificación vehicular')
   },
 
-  async validateRequirement(id: string): Promise<VehicleVerificationRequirement> {
-    return this.updateRequirement(id, {})
+  async validateRequirement(_id: string): Promise<never> {
+    throw contractGap('Validar un requisito de verificación vehicular')
   },
 
-  async activateRequirement(id: string): Promise<VehicleVerificationRequirement> {
-    return this.updateRequirement(id, {})
+  async activateRequirement(_id: string): Promise<never> {
+    throw contractGap('Activar un requisito de verificación vehicular')
   },
 
-  async retireRequirement(id: string, _reason: string): Promise<VehicleVerificationRequirement> {
-    return this.updateRequirement(id, {})
+  async retireRequirement(_id: string, _reason: string): Promise<never> {
+    throw contractGap('Retirar un requisito de verificación vehicular')
   },
 
   // ── Review Tasks ──────────────────────────────────────────────────────────
 
   async listReviewTasks(): Promise<VehicleVerificationReviewTask[]> {
-    return []
+    throw contractGap('El listado de tareas de revisión vehicular')
   },
 
-  async assignReviewTask(taskId: string, _data: VehicleVerificationReviewTaskAssign): Promise<VehicleVerificationReviewTask> {
-    return {
-      id: taskId,
-      vehicle_id: '',
-      plate_number: '',
-      domain: 'SOAT',
-      reason: '',
-      priority: 'MEDIUM',
-      due_date: new Date().toISOString(),
-      status: 'PENDING',
-      assigned_to_user_name: null,
-      suggested_source: 'SUNARP',
-      created_at: new Date().toISOString(),
-    }
+  async assignReviewTask(_taskId: string, _data: VehicleVerificationReviewTaskAssign): Promise<never> {
+    throw contractGap('Asignar una tarea de revisión vehicular')
   },
 
-  async startReviewTask(taskId: string, _data: VehicleVerificationReviewTaskStart): Promise<VehicleVerificationReviewTask> {
-    return {
-      id: taskId,
-      vehicle_id: '',
-      plate_number: '',
-      domain: 'SOAT',
-      reason: '',
-      priority: 'MEDIUM',
-      due_date: new Date().toISOString(),
-      status: 'IN_PROGRESS',
-      assigned_to_user_name: null,
-      suggested_source: 'SUNARP',
-      created_at: new Date().toISOString(),
-    }
+  async startReviewTask(_taskId: string, _data: VehicleVerificationReviewTaskStart): Promise<never> {
+    throw contractGap('Iniciar una tarea de revisión vehicular')
   },
 
-  async completeReviewTask(taskId: string, _data: VehicleVerificationReviewTaskComplete): Promise<VehicleVerificationReviewTask> {
-    return {
-      id: taskId,
-      vehicle_id: '',
-      plate_number: '',
-      domain: 'SOAT',
-      reason: '',
-      priority: 'MEDIUM',
-      due_date: new Date().toISOString(),
-      status: 'COMPLETED',
-      assigned_to_user_name: null,
-      suggested_source: 'SUNARP',
-      created_at: new Date().toISOString(),
-    }
+  async completeReviewTask(_taskId: string, _data: VehicleVerificationReviewTaskComplete): Promise<never> {
+    throw contractGap('Completar una tarea de revisión vehicular')
   },
 }

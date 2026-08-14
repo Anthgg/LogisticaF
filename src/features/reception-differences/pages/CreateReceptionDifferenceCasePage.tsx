@@ -4,21 +4,23 @@ import { useQuery, useMutation } from '../../inbound-docks/hooks/useQuery'
 import { receptionDifferenceCasesApi } from '../api/receptionDifferenceCasesApi'
 import { useLogisticsPermissions } from '../../logistics-permissions/hooks/useLogisticsPermissions'
 import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
-import type { EligibleReceiptForDifference } from '../types/reception-differences'
 
 export function CreateReceptionDifferenceCasePage() {
   const navigate = useNavigate()
   const auth = useLogisticsPermissions()
-  const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(null)
+  const canCreate = auth.hasPermission(LOGISTICS_PERMISSIONS.receptionDifferences.create)
+  const [selectedReceiptId, setSelectedReceiptId] = useState('')
 
-  const eligibleQuery = useQuery<EligibleReceiptForDifference[]>(
-    ['eligible-receipts'],
-    '/logistics/reception-difference-cases/eligible-receipts',
+  const summaryQuery = useQuery<Record<string, unknown>>(
+    ['reception-difference-cases', 'summary'],
+    '/logistics/reception-difference-cases/summary',
+    undefined,
+    { enabled: canCreate },
   )
 
   const createMutation = useMutation(
     async (receiptId: string) => {
-      return receptionDifferenceCasesApi.create({ receipt_id: receiptId })
+      return receptionDifferenceCasesApi.createFromReceipt({ receipt_id: receiptId })
     },
     {
       onSuccess: (result) => {
@@ -29,7 +31,7 @@ export function CreateReceptionDifferenceCasePage() {
     },
   )
 
-  if (!auth.hasPermission(LOGISTICS_PERMISSIONS.receptionDifferences.create)) {
+  if (!canCreate) {
     return (
       <div className="page">
         <div className="panel p-6 text-center text-sm text-slate-500">
@@ -39,67 +41,67 @@ export function CreateReceptionDifferenceCasePage() {
     )
   }
 
-  const eligible = eligibleQuery.data ?? []
+  const summaryEntries = summaryQuery.data
+    ? Object.entries(summaryQuery.data).filter(([, value]) => ['string', 'number', 'boolean'].includes(typeof value))
+    : []
+  const normalizedReceiptId = selectedReceiptId.trim()
 
   return (
     <div className="page">
       <div className="mb-4">
         <h1 className="text-lg font-bold text-slate-800">Crear Caso de Diferencia</h1>
         <p className="text-xs text-slate-500">
-          Selecciona una recepción elegible para crear un nuevo caso.
+          Selecciona una recepción real por su identificador. El caso se crea con la operación contractual desde recepción.
         </p>
       </div>
 
-      {eligibleQuery.isLoading ? (
-        <div className="panel p-8 text-center text-sm text-slate-400">Cargando recepciones…</div>
-      ) : eligible.length === 0 ? (
-        <div className="panel p-8 text-center text-sm text-slate-400">
-          No hay recepciones elegibles disponibles.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {eligible.map((r) => (
-            <div
-              key={r.receipt_id}
-              className={`panel cursor-pointer p-4 transition-colors hover:border-[#1F4E6D] ${
-                selectedReceiptId === r.receipt_id ? 'border-2 border-[#1F4E6D]' : ''
-              }`}
-              onClick={() => setSelectedReceiptId(r.receipt_id)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter') setSelectedReceiptId(r.receipt_id) }}
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-mono text-sm font-bold text-slate-800">{r.code}</p>
-                  <p className="text-xs text-slate-500">
-                    {r.cpv_code && `CPV: ${r.cpv_code}`}
-                    {r.cit_code && ` · CIT: ${r.cit_code}`}
-                  </p>
-                  <p className="text-xs text-slate-500">{r.supplier_name} · {r.warehouse_name}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-slate-500">{r.open_candidates} candidato{r.open_candidates !== 1 ? 's' : ''}</p>
-                  <p className="text-xs text-slate-500">{r.evidence_count} evidencia{r.evidence_count !== 1 ? 's' : ''}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {selectedReceiptId && (
-        <div className="flex justify-end pt-4">
+      <div className="grid gap-4 lg:grid-cols-[1fr_0.8fr]">
+        <form
+          className="panel space-y-4 p-5"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (normalizedReceiptId) createMutation.mutate(normalizedReceiptId)
+          }}
+        >
+          <label className="block text-xs font-semibold text-slate-700" htmlFor="reception-difference-receipt-id">
+            ID de recepción
+          </label>
+          <input
+            id="reception-difference-receipt-id"
+            value={selectedReceiptId}
+            onChange={(event) => setSelectedReceiptId(event.target.value)}
+            placeholder="UUID de la recepción seleccionada"
+            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 font-mono text-sm"
+            required
+          />
           <button
-            type="button"
-            onClick={() => createMutation.mutate(selectedReceiptId)}
-            disabled={createMutation.isPending}
+            type="submit"
+            disabled={!normalizedReceiptId || createMutation.isPending}
             className="rounded-lg bg-[#1F4E6D] px-4 py-2 text-sm font-semibold text-white hover:bg-[#173a55] disabled:opacity-50"
           >
             {createMutation.isPending ? 'Creando…' : 'Crear caso'}
           </button>
-        </div>
-      )}
+        </form>
+
+        <section className="panel p-5" aria-label="Resumen de diferencias">
+          <h2 className="text-sm font-bold text-slate-800">Resumen real</h2>
+          {summaryQuery.isLoading && <p className="mt-3 text-xs text-slate-500">Cargando resumen…</p>}
+          {summaryQuery.isError && <p className="mt-3 text-xs text-rose-600">No se pudo cargar el resumen del backend.</p>}
+          {!summaryQuery.isLoading && !summaryQuery.isError && summaryEntries.length === 0 && (
+            <p className="mt-3 text-xs text-slate-500">El backend respondió sin indicadores escalares para mostrar.</p>
+          )}
+          {summaryEntries.length > 0 && (
+            <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+              {summaryEntries.map(([key, value]) => (
+                <div key={key} className="rounded-xl bg-slate-50 p-3">
+                  <dt className="text-[10px] font-semibold uppercase text-slate-400">{key.replaceAll('_', ' ')}</dt>
+                  <dd className="mt-1 break-words text-sm font-bold text-slate-800">{String(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
+      </div>
 
       {createMutation.error && (
         <p className="mt-2 text-xs text-rose-600" role="alert">{createMutation.error}</p>

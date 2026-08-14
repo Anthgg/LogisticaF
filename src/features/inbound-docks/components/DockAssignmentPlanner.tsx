@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Button } from '../../../components/common/Button'
 import { CompatibleDocksPanel } from './CompatibleDocksPanel'
 import { DockRecommendationPanel } from './DockRecommendationPanel'
@@ -56,18 +56,8 @@ export function DockAssignmentPlanner({
   const [overrideTarget, setOverrideTarget] = useState<DockCompatibilityResult | null>(null)
   const [assignOpen, setAssignOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const planId = plan?.id ?? null
-  const planQuery = useQuery<DockAssignmentPlan>(
-    ['dock-assignment-plan-refresh', planId],
-    planId ? `/logistics/inbound/dock-assignment-plans/${planId}` : '',
-    undefined,
-    { enabled: Boolean(planId), refetchIntervalMs: 5_000 },
-  )
-  useEffect(() => {
-    if (planQuery.data) {
-      setPlan(planQuery.data)
-    }
-  }, [planQuery.data])
+  // El plan no se refresca: el backend lo calcula al crearlo y expira. Para
+  // tener uno vigente se vuelve a planificar, que es lo que hace `createPlan`.
   const entryQuery = useQuery<InboundDockQueueEntry>(
     ['dock-queue-entry-refresh', entry?.id],
     entry ? `/logistics/inbound-dock-queue/${entry.id}` : '',

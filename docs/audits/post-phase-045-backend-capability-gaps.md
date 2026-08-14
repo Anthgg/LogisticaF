@@ -1,157 +1,161 @@
 # Auditoría post-F045 · Contrato frontend ↔ backend
 
-Fuente de verdad: **OpenAPI real** del backend `Anthgg/Logistica` @
-`5486774aff0d100fa5210107bd4397944267e7a0` (973 operaciones), capturado en
-`scripts/contracts/backend-routes.phase045.json`.
+Estado: **RUNTIME_FIXED_FRONTEND**.
 
-Reproducir con:
+Fuente de verdad: OpenAPI real de `Anthgg/Logistica` en
+`5486774aff0d100fa5210107bd4397944267e7a0`, con 973 operaciones. La copia
+generada y versionada es `scripts/contracts/backend-routes.phase045.json`.
 
 ```bash
-npm run contract:manifest -- --url http://127.0.0.1:8000/openapi.json --backend-sha <sha>
+npm run contract:manifest -- \
+  --url http://127.0.0.1:8000/openapi.json \
+  --backend-sha 5486774aff0d100fa5210107bd4397944267e7a0
 npm run contract:audit
 ```
 
-## Estado
+El manifiesto se regeneró contra el OpenAPI local F045 y produjo diff cero. El
+auditor valida además que `source_backend_sha` sea exactamente el SHA anterior;
+si cambia o falta, termina con exit 1.
 
-| | Llamadas |
-|---|---|
-| Runtime totales | 308 |
-| MATCH | 259 |
-| Fuera de contrato al empezar la tercera pasada | 74 |
-| **Corregidas en esta pasada** | **27** |
-| **Pendientes** | **47** |
+## Resultado
 
-Las 27 corregidas eran rutas mal escritas contra recursos que **sí existen**.
-Ninguna capacidad de producto se retiró para bajar el contador.
+| Medición | Antes de la cuarta pasada | Después |
+|---|---:|---:|
+| Runtime detectadas por el auditor original | 308 | — |
+| MATCH | 259 | — |
+| PATH_MISMATCH | 40 | 0 |
+| STATIC_COLLIDES_WITH_PATH_PARAM | 8 | 0 |
+| METHOD_MISMATCH | 1 | 0 |
+| Total fuera de contrato | **47** | **0** |
+| Runtime detectadas por el auditor reforzado | — | 857 |
+| MATCH con el auditor reforzado | — | **857** |
+| UNPARSED / UNRESOLVED | — | **0** |
 
----
+El total final es mayor porque el auditor ahora resuelve constantes, ternarios,
+helpers de query y paths pasados a wrappers. El criterio de cierre no cambia:
+toda llamada runtime clasificada termina en `MATCH`. El wrapper genérico
+`useQuery` se informa por separado y sus call sites concretos sí se auditan.
 
-## 1. Corregido · rutas inventadas sobre recursos reales
+## Decisiones de producto aplicadas
 
-| Frontend (incorrecto) | Backend real | Fase |
-|---|---|---|
-| `/quality-inspections/inspections/{id}` | `/quality-inspections/{id}` | F042 |
-| `/quality-quarantine/cases/{id}` | `/quality-quarantine-cases/{id}` | F042 |
-| `/quality-availability/future-*-preparation/{id}` | `/quality-quarantine-cases/{id}/future-*-preparation` | F042 |
-| `/quality-availability/putaway-preparation/{id}` | `/quality-quarantine-cases/{id}/putaway-preparation` | F042 |
-| `/quality-quarantine-cases/{id}/disposition-decisions` | `/quality-quarantine-cases/{id}/decisions` | F042 |
-| `/quality-inspection-evidence/evidence?inspection_id=` | `/quality-inspections/{id}/evidence` | F042 |
-| `/quality-plan-versions/{id}` | `/quality-inspection-plans/versions/{id}` | F041 |
-| `/quality/versions/{id}/*` | `/quality-inspection-plans/versions/{id}/*` | F041 |
-| `/quality/controls/{id}` | `/quality-inspection-plans/controls/{id}` | F041 |
-| `/quality/scopes/{id}` | `/quality-inspection-plans/scopes/{id}` | F041 |
-| `/quality-inspections/controls/{id}` | `/quality-inspection-controls/{id}` | F042 |
-| `/quality-inspection-plans/category-plans` | `/quality-inspection-plans/resolve?product_category_id=` | F041 |
-| `/quality-inspection-plans/preview` | `/quality-inspection-plans/resolve?product_id=` | F041 |
-
----
-
-## 2. Capacidades verificadas como PRESENTES en backend
-
-Contra el plan de fases, estas capacidades **no son gaps**: existen y ahora se
-consumen bien o pueden consumirse.
-
-### F041 · Planes de calidad
-Plan reutilizable, controles, **tolerancias**, **muestreos**, **certificados**,
-condiciones, ámbitos, versiones, activación/retiro, resolución por producto y
-categoría, métricas, integridad y snapshot. 52 endpoints publicados.
-
-### F042 · Cuarentena
-Casos, activación, cierre, **decisiones de disposición**, **autorizaciones de
-liberación y rechazo** (con ejecución separada), reinspección, preparaciones
-futuras, integridad y zonas de cuarentena. 18 + 4 endpoints.
-
-### F043 · Putaway dirigido
-Tareas, asignación, inicio, pausa, reanudación, finalización, **capacidad**,
-**compatibilidad**, **proximidad**, políticas y recomendaciones. Y el flujo
-móvil completo: `POST /putaway/tasks/{id}/sessions` → `POST
-/putaway/sessions/{id}/scans` → `validate-product` / `validate-location` →
-`POST /putaway/sessions/{id}/complete` → `POST /putaway/placements/{id}/finalize`.
-
-**El escaneo móvil producto+ubicación de F043 NO es un gap de backend**: está
-publicado. El frontend lo tenía deshabilitado por apuntar a `/putaway/scan`,
-que nunca existió. Migrarlo requiere que la UI abra una sesión sobre una tarea.
-
----
-
-## 3. Gaps y pendientes (47 llamadas)
-
-Ninguna de estas rutas existe en el backend `5486774`. Se listan con la
-clasificación que les corresponde para que la decisión sea explícita.
+La evidencia histórica de los 12 gaps se conserva aquí. Ninguno se resolvió
+afirmando que el backend implementó algo nuevo: se corrigió o retiró únicamente
+el consumidor frontend.
 
 ### GAP-01 · No conformidades de calidad
-- **Fase**: F042 (documento de no conformidad)
-- **Frontend**: `qualityNonConformitiesApi` (5 llamadas: issue, preview, detalle, cancel, reprint)
-- **Evidencia backend**: `grep non-conform` sobre el OpenAPI → **0 endpoints**
-- **Riesgo**: la pantalla ofrece emitir un documento que no puede emitirse
-- **Clasificación**: `BACKEND_CAPABILITY_MISSING`
-- **Recomendación**: si F042 exige el documento formal de no conformidad, hace falta hotfix backend; si no, retirar la UI
 
-### GAP-02 · Certificados anclados a versión en vez de control
-- **Fase**: F041
-- **Frontend**: `QualityCertificateRequirementsEditor` recibe `versionId` y llama a `certificate-requirements`
-- **Evidencia backend**: el recurso real es `POST /quality-inspection-plans/controls/{control_id}/certificates` y `PATCH|DELETE /certificates/{certificate_id}`
-- **Clasificación**: **no es gap de backend** — es un desajuste del modelo del frontend
-- **Recomendación**: pasar `controlId` al editor y consumir el recurso real
+- Evidencia F045: no hay endpoints de no conformidades.
+- Resultado: feature aislada retirada; API y navegación runtime eliminadas.
+- Requests a endpoints inexistentes: 0.
+
+### GAP-02 · Certificados anclados a versión
+
+- Evidencia F045: certificados son subrecursos de
+  `/quality-inspection-plans/controls/{control_id}`.
+- Resultado: editor restaurado y rediseñado para `controlId`; list/create usan
+  el control y update/delete usan `certificate_id`.
+- Sin `controlId`: no request y estado explícito.
 
 ### GAP-03 · Rotación como reporte
-- **Fase**: F043
-- **Frontend**: `putawayRotationApi` (4 llamadas: warehouses, compliance, expiring, products)
-- **Evidencia backend**: 0 endpoints `/putaway/rotation/*`. La rotación **como regla** existe vía `/putaway/policies`
-- **Clasificación**: `REMOVE_FUTURE_FEATURE` — F043 exige rotación como criterio de asignación, no un dashboard de rotación
+
+- Evidencia F045: no existe `/putaway/rotation/*`; la rotación sí existe como
+  política de putaway.
+- Resultado: reporte futuro y sus APIs retirados; políticas preservadas.
 
 ### GAP-04 · Documentos de putaway
-- **Fase**: F043 · **Frontend**: `putawayDocumentsApi` (5 llamadas)
-- **Evidencia backend**: 0 endpoints `/putaway/documents/*` ni `/orders/{id}/documents`
-- **Clasificación**: `REMOVE_FUTURE_FEATURE`
 
-### GAP-05 · Dashboard e integridad de putaway
-- **Frontend**: `putawayHistoryApi` (2 llamadas) · **Backend**: 0 endpoints
-- **Clasificación**: `REMOVE_FUTURE_FEATURE`
+- Evidencia F045: no existen `/putaway/documents/*` ni
+  `/orders/{id}/documents` en este dominio.
+- Resultado: consumidores futuros retirados, sin afectar documentos logísticos
+  generales.
 
-### GAP-06 · Historial y placements de cuarentena
-- **Fase**: F042 · **Frontend**: `QualityQuarantineHistoryTimeline`, `ConfirmQuarantinePlacementDialog`
-- **Evidencia backend**: existe `/quality-quarantine-cases/{id}/integrity`, no `/history` ni `/placements`
-- **Clasificación**: `BACKEND_CAPABILITY_MISSING` (trazabilidad del caso)
+### GAP-05 · Dashboard/historial/integridad extra de putaway
 
-### GAP-07 · Evidencia: archivar y sesión de carga
-- **Fase**: F042 · **Frontend**: `qualityInspectionEvidenceApi`
-- **Evidencia backend**: existe `GET /quality-inspections/{id}/evidence` y `POST /evidence-links`; no `archive` ni `upload-session`
-- **Clasificación**: `BACKEND_CAPABILITY_MISSING`
+- Evidencia F045: no hay endpoints de dashboard ni historial de putaway.
+- Resultado: widgets y rutas dependientes retirados. Tasks, sesiones, scans,
+  placements, políticas y recomendaciones permanecen.
 
-### GAP-08 · Validación por versión de plan
-- **Fase**: F041 · **Frontend**: `versions/{id}/validate`, `PATCH versions/{id}`
-- **Evidencia backend**: la validación es **por plan** (`GET /{plan_id}/validate`); las versiones solo admiten `activate`, `hash`, `retire`
-- **Clasificación**: `BACKEND_CAPABILITY_MISSING` o rediseño del frontend a validación por plan
+### GAP-06 · Historial y placement de cuarentena
 
-### GAP-09 · Listados sin ámbito de plan
-- **Frontend**: `GET /quality-controls`, `GET /quality-plan-scopes` (4 llamadas)
-- **Evidencia backend**: ambos son subrecursos: `/{plan_id}/controls`, `/{plan_id}/scopes`
-- **Clasificación**: rediseño del frontend, no gap
+- Evidencia F045: existe integridad del caso, no `/history` ni `/placements`.
+- Resultado: timeline y diálogo huérfanos retirados; cualquier acción no
+  publicada devuelve indisponibilidad explícita sin emitir request.
+
+### GAP-07 · Archive/upload-session de evidencia
+
+- Evidencia F045: `GET /quality-inspections/{id}/evidence` y
+  `POST /evidence-links`; no existen archive ni upload-session.
+- Resultado: se reutiliza la infraestructura real de evidencia; acciones no
+  soportadas quedan explícitamente no disponibles.
+
+### GAP-08 · Validación/PATCH de versión
+
+- Evidencia F045: validación `GET` por plan; versiones admiten get, activate,
+  hash y retire, no PATCH genérico ni validate por versión.
+- Resultado: validación movida al plan; edición arbitraria de versión retirada
+  o presentada como solo lectura.
+
+### GAP-09 · Controles y scopes sin plan
+
+- Evidencia F045: ambos son subrecursos de
+  `/quality-inspection-plans/{plan_id}`.
+- Resultado: consumidores exigen `planId`; sin plan no realizan peticiones.
+  Muestreos, tolerancias y certificados exigen además el `controlId` real.
 
 ### GAP-10 · Verificaciones vehiculares
-- **Frontend**: detalle por `verification_id` y evidencias
-- **Evidencia backend**: solo `POST /vehicle-verifications/{id}/apply` y `GET /vehicles/{vehicle_id}/verifications`
-- **Clasificación**: `BACKEND_CAPABILITY_MISSING`
+
+- Evidencia F045: `GET /vehicles/{vehicle_id}/verifications` y
+  `POST /vehicle-verifications/{verification_id}/apply`; no existe detail ni
+  evidence por verification id.
+- Resultado: listado por vehículo y apply real. Datos ausentes se muestran como
+  no disponibles, sin arrays vacíos ni requests inventadas.
 
 ### GAP-11 · Diferencias de recepción
-- **Frontend**: `eligible-receipts`, `{id}/quality-preview`
-- **Evidencia backend**: existen `/from-receipt` y `/summary`, no esos dos
-- **Clasificación**: `BACKEND_CAPABILITY_MISSING` (F040)
 
-### GAP-12 · Split de disposición como previsualización
-- **Frontend**: `GET /inbound-inventory-disposition/allocations/{id}/split`
-- **Evidencia backend**: `POST /inbound-inventory-disposition-allocations/{id}/split` — ejecuta el split, no lo previsualiza
-- **Clasificación**: rediseño del frontend
+- Evidencia F045: `POST /reception-difference-cases/from-receipt` y
+  `GET /reception-difference-cases/summary`; no existen eligible-receipts ni
+  quality-preview.
+- Resultado: el flujo parte del receipt seleccionado y usa el resumen real. El
+  preview no soportado se muestra como no disponible sin request.
 
----
+### GAP-12 · Preview de split
 
-## 4. Qué falta para cerrar el contrato a cero
+- Evidencia F045: solo existe
+  `POST /inbound-inventory-disposition-allocations/{id}/split`.
+- Resultado: la previsualización es cálculo local con el input del usuario; la
+  confirmación usa el POST real. No se emite GET `/split`.
 
-Las 47 pendientes **no se resuelven corrigiendo rutas**: cada una exige decidir
-entre (a) rediseñar el consumidor para el recurso real, (b) retirar la UI, o
-(c) pedir un hotfix de backend. Esa decisión es de producto.
+## F041/F042/F043 preservadas
 
-Mientras tanto el frontend **sigue emitiendo esas peticiones**, así que
-`npm run contract:audit` devuelve exit 1 y el gate de CI no se activa: un gate
-que falla desde el primer día no protege nada.
+- F041: plan reutilizable, packaging, peso, temperatura, certificados,
+  muestreo y tolerancias permanecen consumiendo recursos reales.
+- F042: caso, bloqueo, aprobación, rechazo, liberación y autorizaciones
+  permanecen; extras sin backend no ejecutan requests.
+- F043: tasks, capacidad, compatibilidad, política de rotación, proximidad,
+  sesiones, scans, complete y finalize permanecen.
+
+El móvil F043 usa el flujo publicado:
+
+1. `POST /putaway/tasks/{task_id}/sessions`
+2. `POST /putaway/sessions/{session_id}/scans`
+3. `POST /putaway/sessions/{session_id}/scans/{event_id}/validate-product`
+4. `POST /putaway/sessions/{session_id}/scans/{event_id}/validate-location`
+5. creación/confirmación de placement por el recurso real de la tarea
+6. `POST /putaway/sessions/{session_id}/complete`
+7. `POST /putaway/placements/{confirmation_id}/finalize`
+
+CSRF, cookies, tenant/site scope, RBAC, Step-Up e idempotencia no se relajaron.
+
+## Gate de CI
+
+`.github/workflows/ci.yml` ejecuta, sin `continue-on-error`:
+
+1. `npm ci`
+2. `npm run typecheck`
+3. `npm run lint`
+4. `npm run test:run`
+5. `npm run contract:audit`
+6. `npm run build`
+
+El step se llama **Run API Contract Audit** y usa exclusivamente el manifiesto
+versionado: no requiere backend live, Cloud Run ni internet.

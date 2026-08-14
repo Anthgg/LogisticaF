@@ -2,6 +2,8 @@ import { apiRequest, getCsrfToken } from '../../../api/api-client'
 import type { InboundScanSession, InboundScannerType } from '../types/inbound-receiving'
 
 const BASE = '/logistics/inbound-receipts'
+// Las transiciones de una sesión son del recurso sesión, no del acta.
+const SESSIONS_BASE = '/logistics/inbound-scan-sessions'
 
 async function withCsrf(): Promise<Record<string, string>> {
   const token = await getCsrfToken()
@@ -29,40 +31,40 @@ export const inboundScanSessionsApi = {
     })
   },
 
-  async pause(receiptId: string, sessionId: string): Promise<InboundScanSession> {
+  async pause(_receiptId: string, sessionId: string): Promise<InboundScanSession> {
     const csrf = await withCsrf()
     return apiRequest({
-      path: `${BASE}/${receiptId}/scan-sessions/${sessionId}/pause`,
+      path: `${SESSIONS_BASE}/${sessionId}/pause`,
       method: 'POST',
       headers: csrf,
       body: {},
     })
   },
 
-  async resume(receiptId: string, sessionId: string): Promise<InboundScanSession> {
+  async resume(_receiptId: string, sessionId: string): Promise<InboundScanSession> {
     const csrf = await withCsrf()
     return apiRequest({
-      path: `${BASE}/${receiptId}/scan-sessions/${sessionId}/resume`,
+      path: `${SESSIONS_BASE}/${sessionId}/resume`,
       method: 'POST',
       headers: csrf,
       body: {},
     })
   },
 
-  async complete(receiptId: string, sessionId: string): Promise<InboundScanSession> {
+  async complete(_receiptId: string, sessionId: string): Promise<InboundScanSession> {
     const csrf = await withCsrf()
     return apiRequest({
-      path: `${BASE}/${receiptId}/scan-sessions/${sessionId}/complete`,
+      path: `${SESSIONS_BASE}/${sessionId}/complete`,
       method: 'POST',
       headers: csrf,
       body: {},
     })
   },
 
-  async cancel(receiptId: string, sessionId: string): Promise<InboundScanSession> {
+  async cancel(_receiptId: string, sessionId: string): Promise<InboundScanSession> {
     const csrf = await withCsrf()
     return apiRequest({
-      path: `${BASE}/${receiptId}/scan-sessions/${sessionId}/cancel`,
+      path: `${SESSIONS_BASE}/${sessionId}/cancel`,
       method: 'POST',
       headers: csrf,
       body: {},

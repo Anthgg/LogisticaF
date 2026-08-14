@@ -10,8 +10,6 @@ import { ErrorPanel, KeyValueGrid, SectionPanel, SkeletonRows, StatusPill } from
 import { formatServerTime, priorityLabel, queueStatusLabel } from '../utils/format'
 import { useInboundDockQueueEntry } from '../hooks/useInboundDocksQueries'
 import type { GateCheckInSummary } from '../types/inbound-docks'
-import { useQuery } from '../hooks/useQuery'
-import type { DockAssignmentPlan } from '../types/inbound-docks'
 import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
 
 export function InboundDockQueueEntryDetailPage() {
@@ -20,12 +18,8 @@ export function InboundDockQueueEntryDetailPage() {
   const canChange = hasPermission(LOGISTICS_PERMISSIONS.inboundDocks.changePriority)
   const [priorityOpen, setPriorityOpen] = useState(false)
   const entry = useInboundDockQueueEntry(entryId ?? null)
-  useQuery<DockAssignmentPlan>(
-    ['dock-queue-entry-plan', entryId],
-    entryId ? `/logistics/inbound/dock-assignment-plans?queue_entry_id=${entryId}` : '',
-    undefined,
-    { enabled: Boolean(entryId), refetchIntervalMs: 10_000 },
-  )
+  // El plan de asignación no se puede listar: el backend solo lo emite al
+  // planificar. El planificador lo mantiene en memoria mientras está vigente.
   if (entry.isLoading) return <SkeletonRows rows={4} />
   if (entry.isError) return <ErrorPanel message={entry.error ?? 'No se pudo cargar la entrada.'} />
   const data = entry.data

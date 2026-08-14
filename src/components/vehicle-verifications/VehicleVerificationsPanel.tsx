@@ -3,11 +3,9 @@ import { vehicleVerificationsApi } from '../../api/vehicle-verifications-api'
 import { Button } from '../common/Button'
 import { LoadingSkeleton } from '../common/LoadingSkeleton'
 import { ApplyVehicleVerificationDialog } from './ApplyVehicleVerificationDialog'
-import { ApproveAssistedVehicleVerificationDialog } from './ApproveAssistedVehicleVerificationDialog'
 import { AssistedVehicleVerificationForm } from './AssistedVehicleVerificationForm'
 import { RequestVehicleVerificationDialog } from './RequestVehicleVerificationDialog'
 import { VehicleVerificationCompliancePanel } from './VehicleVerificationCompliancePanel'
-import { VehicleVerificationConflictsPanel } from './VehicleVerificationConflictsPanel'
 import { VehicleVerificationDomainsGrid } from './VehicleVerificationDomainsGrid'
 import { VehicleVerificationHistoryTimeline } from './VehicleVerificationHistoryTimeline'
 import { VehicleVerificationProgress } from './VehicleVerificationProgress'
@@ -16,12 +14,9 @@ import { useSensitiveOperationGuard } from '../../features/continuous-auth/hooks
 import { useLogisticsPermissions } from '../../features/logistics-permissions/hooks/useLogisticsPermissions'
 import { LOGISTICS_PERMISSIONS } from '../../features/logistics-permissions/logistics-permissions-map'
 import type {
-  AssistedVehicleVerification,
   AssistedVehicleVerificationCreate,
   VehicleVerification,
   VehicleVerificationCompliance,
-  VehicleVerificationConflict,
-  VehicleVerificationConflictResolve,
   VehicleVerificationDomain,
   VehicleVerificationRequest,
 } from '../../types/vehicle-verifications'
@@ -41,37 +36,30 @@ export function VehicleVerificationsPanel({
   const { hasPermission } = useLogisticsPermissions()
   const canRequest = hasPermission(LOGISTICS_PERMISSIONS.vehicleVerifications.request)
   const canApply = hasPermission(LOGISTICS_PERMISSIONS.vehicleVerifications.applyResult)
-  const canResolveConflict = hasPermission(LOGISTICS_PERMISSIONS.vehicleVerifications.resolveConflict)
-  const canApproveAssisted = hasPermission(LOGISTICS_PERMISSIONS.vehicleVerifications.approveAssisted)
 
   const [verifications, setVerifications] = useState<VehicleVerification[]>([])
   const [compliance, setCompliance] = useState<VehicleVerificationCompliance | null>(null)
-  const [conflicts, setConflicts] = useState<VehicleVerificationConflict[]>([])
-  const [pendingAssisted, setPendingAssisted] = useState<AssistedVehicleVerification[]>([])
   const [selectedVerification, setSelectedVerification] = useState<VehicleVerification | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [refreshTick, setRefreshTick] = useState(0)
 
   // Dialogs
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [showAssistedModal, setShowAssistedModal] = useState(false)
   const [showApplyModal, setShowApplyModal] = useState(false)
-  const [approveTarget, setApproveTarget] = useState<AssistedVehicleVerification | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     try {
-      const [vList, compRes, conflictList, assistedList] = await Promise.all([
-        vehicleVerificationsApi.listByVehicle(vehicleId).catch(() => []),
-        vehicleVerificationsApi.getVehicleCompliance(vehicleId).catch(() => null),
-        vehicleVerificationsApi.listConflicts(undefined).catch(() => []),
-        vehicleVerificationsApi.listAssistedVerifications().catch(() => []),
+      const [vList, compRes] = await Promise.all([
+        vehicleVerificationsApi.listByVehicle(vehicleId),
+        vehicleVerificationsApi.getVehicleCompliance(vehicleId),
       ])
       setVerifications(vList)
       setCompliance(compRes)
-      setConflicts(conflictList.filter((c) => c.vehicle_id === vehicleId))
-      setPendingAssisted(assistedList.filter((a) => a.vehicle_id === vehicleId && a.review_status === 'PENDING_APPROVAL'))
       setSelectedVerification((prev) => {
         if (prev) {
           const updated = vList.find((v) => v.id === prev.id) ?? null
@@ -79,6 +67,8 @@ export function VehicleVerificationsPanel({
         }
         return vList.length > 0 ? vList[0] : null
       })
+    } catch (cause) {
+      setLoadError(cause instanceof Error ? cause.message : 'No se pudieron cargar las verificaciones del vehículo.')
     } finally {
       setLoading(false)
     }
@@ -153,83 +143,15 @@ export function VehicleVerificationsPanel({
     }
   }
 
-  const handleResolveConflict = async (conflictId: string, data: VehicleVerificationConflictResolve) => {
-    setSubmitting(true)
-    try {
-      const executed = await guardSensitiveAction(async () => {
-        await vehicleVerificationsApi.resolveConflict(conflictId, data)
-      })
-      if (executed) void loadData()
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error al resolver conflicto')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleRetry = async () => {
-    if (!selectedVerification) return
-    setSubmitting(true)
-    try {
-      await vehicleVerificationsApi.retryVerification(selectedVerification.id)
-      void loadData()
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error al reintentar verificación')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleRevoke = async () => {
-    if (!selectedVerification) return
-    const reason = window.prompt('Motivo de revocación:')
-    if (!reason) return
-    setSubmitting(true)
-    try {
-      const executed = await guardSensitiveAction(async () => {
-        await vehicleVerificationsApi.revokeVerification(selectedVerification.id, reason)
-      })
-      if (executed) void loadData()
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error al revocar verificación')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleApproveAssisted = async (notes: string) => {
-    if (!approveTarget) return
-    setSubmitting(true)
-    try {
-      const executed = await guardSensitiveAction(async () => {
-        await vehicleVerificationsApi.approveAssistedVerification(approveTarget.id, notes)
-      })
-      if (executed) {
-        setApproveTarget(null)
-        void loadData()
-      }
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error al aprobar validación asistida')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleRejectAssisted = async (reason: string) => {
-    if (!approveTarget) return
-    setSubmitting(true)
-    try {
-      await vehicleVerificationsApi.rejectAssistedVerification(approveTarget.id, reason)
-      setApproveTarget(null)
-      void loadData()
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error al rechazar validación asistida')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
   if (loading) return <LoadingSkeleton rows={8} />
+
+  if (loadError) {
+    return (
+      <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700" role="alert">
+        {loadError}
+      </div>
+    )
+  }
 
   const activeVerification = verifications.find(
     (v) => v.status === 'REQUESTED' || v.status === 'QUEUED' || v.status === 'IN_PROGRESS',
@@ -279,33 +201,6 @@ export function VehicleVerificationsPanel({
         />
       )}
 
-      {/* Pending Assisted Approvals */}
-      {pendingAssisted.length > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-          <h4 className="font-bold text-amber-800 text-xs uppercase tracking-wider">
-            Validaciones asistidas pendientes de aprobación ({pendingAssisted.length})
-          </h4>
-          <ul className="space-y-1">
-            {pendingAssisted.map((a) => (
-              <li
-                key={a.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-white p-2"
-              >
-                <span className="text-slate-700">
-                  <strong className="font-mono">{a.domain}</strong> · por {a.created_by_user_name} ·{' '}
-                  {a.result_status}
-                </span>
-                {canApproveAssisted && (
-                  <Button size="small" onClick={() => setApproveTarget(a)}>
-                    Revisar / Aprobar
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {/* Domains Grid */}
       <VehicleVerificationDomainsGrid
         verifications={verifications}
@@ -324,19 +219,6 @@ export function VehicleVerificationsPanel({
       {/* Selected Verification Result */}
       {selectedVerification && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {selectedVerification.status === 'FAILED' && (
-              <Button size="small" variant="secondary" onClick={() => void handleRetry()} disabled={submitting}>
-                Reintentar
-              </Button>
-            )}
-            {selectedVerification.status === 'COMPLETED' && (
-              <Button size="small" variant="secondary" onClick={() => void handleRevoke()} disabled={submitting}>
-                Revocar (Step-Up)
-              </Button>
-            )}
-          </div>
-
           <VehicleVerificationResultPanel
             verification={selectedVerification}
             onApplyRequested={() => setShowApplyModal(true)}
@@ -349,17 +231,6 @@ export function VehicleVerificationsPanel({
               <VehicleVerificationHistoryTimeline history={selectedVerification.history} />
             </div>
           )}
-        </div>
-      )}
-
-      {/* Conflicts */}
-      {conflicts.length > 0 && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50/30 p-4">
-          <VehicleVerificationConflictsPanel
-            conflicts={conflicts}
-            onResolveConflict={handleResolveConflict}
-            canResolve={canResolveConflict}
-          />
         </div>
       )}
 
@@ -420,21 +291,6 @@ export function VehicleVerificationsPanel({
         />
       )}
 
-      {/* Approve Assisted Modal */}
-      {approveTarget && (
-        <ApproveAssistedVehicleVerificationDialog
-          isOpen={Boolean(approveTarget)}
-          isSubmitting={submitting}
-          verification={approveTarget}
-          proposedConfidence={null}
-          warnings={[]}
-          differences={[]}
-          canSelfApprove={canApproveAssisted}
-          onApprove={handleApproveAssisted}
-          onReject={handleRejectAssisted}
-          onClose={() => setApproveTarget(null)}
-        />
-      )}
     </div>
   )
 }

@@ -60,8 +60,15 @@ export const costCentersApi = {
 
   async transition(id: string, action: 'activate' | 'deactivate' | 'archive'): Promise<CostCenter> {
     const csrfToken = await getCsrfToken()
+    // Las tres transiciones se escriben literales: así el path que sale a la red
+    // es legible en el código y verificable contra el contrato.
+    const path = action === 'activate'
+      ? `${BASE}/${id}/activate`
+      : action === 'deactivate'
+        ? `${BASE}/${id}/deactivate`
+        : `${BASE}/${id}/archive`
     return apiRequest({
-      path: `${BASE}/${id}/${action}`,
+      path,
       method: 'POST',
       headers: { 'X-CSRF-Token': csrfToken },
       body: {},

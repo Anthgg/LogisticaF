@@ -8,10 +8,15 @@ import { EmptyState } from '../../../components/common/EmptyState'
 
 import { useQuery, useMutation } from '../../inbound-docks/hooks/useQuery'
 import { qualityInspectionPlansApi } from '../api/qualityInspectionPlansApi'
+import QualityCertificateRequirementsEditor from '../components/QualityCertificateRequirementsEditor'
+import { useLogisticsPermissions } from '../../logistics-permissions/hooks/useLogisticsPermissions'
+import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
 import { getErrorMessage } from '../../../utils/errors'
 import type {
   QualityInspectionPlan,
-  QualityInspectionPlanCapabilities,
+  QualityInspectionPlanVersion,
+  QualityPlanScope,
+  QualityControlDefinition,
   QualityInspectionPlanStatus,
 } from '../types/quality-inspection-plans'
 
@@ -62,17 +67,12 @@ export function QualityInspectionPlanDetailPage() {
   const { planId } = useParams<{ planId: string }>()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<DetailTab>('summary')
+  const { hasPermission } = useLogisticsPermissions()
+  const permissions = LOGISTICS_PERMISSIONS.qualityInspectionPlans
 
   const plan = useQuery<QualityInspectionPlan>(
     ['quality-inspection-plans', 'detail', planId ?? ''],
     `/logistics/quality-inspection-plans/${planId}`,
-    undefined,
-    { enabled: Boolean(planId) },
-  )
-
-  const capabilities = useQuery<QualityInspectionPlanCapabilities>(
-    ['quality-inspection-plans', 'capabilities', planId ?? ''],
-    `/logistics/quality-inspection-plans/${planId}/capabilities`,
     undefined,
     { enabled: Boolean(planId) },
   )
@@ -82,18 +82,21 @@ export function QualityInspectionPlanDetailPage() {
     { onSuccess: () => void plan.refetch() },
   )
 
-  const restoreMutation = useMutation(
-    () => qualityInspectionPlansApi.deactivate(planId!),
-    { onSuccess: () => void plan.refetch() },
-  )
-
   useEffect(() => {
     setActiveTab('summary')
   }, [planId])
 
-  const canEdit = capabilities.data?.can_update ?? false
-  const canArchive = capabilities.data?.can_archive ?? false
-  const canRestore = plan.data?.status === 'ARCHIVED'
+  const canEdit = hasPermission(permissions.update)
+  const canArchive = hasPermission(permissions.archive)
+  const canValidate = hasPermission(permissions.validate)
+  const canCreateVersion = hasPermission(permissions.createVersion)
+  const canActivate = hasPermission(permissions.activate)
+  const canDetectConflicts = hasPermission(permissions.detectConflicts)
+  const canManageScopes = hasPermission(permissions.manageScopes)
+  const canManageControls = hasPermission(permissions.manageControls)
+  const canManageTolerances = hasPermission(permissions.manageTolerances)
+  const canManageSampling = hasPermission(permissions.manageSampling)
+  const canManageCertificates = hasPermission(permissions.manageCertificates)
 
   if (plan.isLoading) {
     return (
@@ -128,11 +131,7 @@ export function QualityInspectionPlanDetailPage() {
             <Button size="small" variant="ghost" onClick={() => navigate('/logistics/quality/plans')}>
               ← Volver
             </Button>
-            {canEdit && (
-              <Button size="small" variant="secondary">
-                Editar
-              </Button>
-            )}
+            {canEdit && <span className="self-center text-[10px] text-slate-500">Edición disponible en la configuración de versión</span>}
             {canArchive && p.status !== 'ARCHIVED' && (
               <Button
                 size="small"
@@ -141,16 +140,6 @@ export function QualityInspectionPlanDetailPage() {
                 onClick={() => void archiveMutation.mutate(undefined as never)}
               >
                 Archivar
-              </Button>
-            )}
-            {canRestore && (
-              <Button
-                size="small"
-                variant="secondary"
-                isLoading={restoreMutation.isPending}
-                onClick={() => void restoreMutation.mutate(undefined as never)}
-              >
-                Restaurar
               </Button>
             )}
           </div>
@@ -181,31 +170,31 @@ export function QualityInspectionPlanDetailPage() {
         <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${STATUS_TONE[p.status]}`}>
           {STATUS_LABELS[p.status]}
         </span>
-        {capabilities.data?.can_validate && (
+        {canValidate && (
           <span className="inline-block rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-700">Puede validar</span>
         )}
-        {capabilities.data?.can_create_version && (
+        {canCreateVersion && (
           <span className="inline-block rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold text-amber-700">Puede crear versión</span>
         )}
-        {capabilities.data?.can_activate && (
+        {canActivate && (
           <span className="inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700">Puede activar</span>
         )}
-        {capabilities.data?.can_detect_conflicts && (
+        {canDetectConflicts && (
           <span className="inline-block rounded-full bg-red-50 px-2.5 py-0.5 text-[10px] font-bold text-red-700">Detectar conflictos</span>
         )}
-        {capabilities.data?.can_manage_scopes && (
+        {canManageScopes && (
           <span className="inline-block rounded-full bg-purple-50 px-2.5 py-0.5 text-[10px] font-bold text-purple-700">Gestionar ámbitos</span>
         )}
-        {capabilities.data?.can_manage_controls && (
+        {canManageControls && (
           <span className="inline-block rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-bold text-indigo-700">Gestionar controles</span>
         )}
-        {capabilities.data?.can_manage_tolerances && (
+        {canManageTolerances && (
           <span className="inline-block rounded-full bg-teal-50 px-2.5 py-0.5 text-[10px] font-bold text-teal-700">Gestionar tolerancias</span>
         )}
-        {capabilities.data?.can_manage_sampling && (
+        {canManageSampling && (
           <span className="inline-block rounded-full bg-cyan-50 px-2.5 py-0.5 text-[10px] font-bold text-cyan-700">Gestionar muestreo</span>
         )}
-        {capabilities.data?.can_manage_certificates && (
+        {canManageCertificates && (
           <span className="inline-block rounded-full bg-pink-50 px-2.5 py-0.5 text-[10px] font-bold text-pink-700">Gestionar certificados</span>
         )}
       </div>
@@ -231,7 +220,7 @@ export function QualityInspectionPlanDetailPage() {
 
       {/* Tab panels */}
       {activeTab === 'summary' && (
-        <SummaryPanel plan={p} capabilities={capabilities.data ?? null} />
+        <SummaryPanel plan={p} />
       )}
       {activeTab === 'versions' && (
         <VersionsPanel planId={p.plan_id} />
@@ -249,7 +238,7 @@ export function QualityInspectionPlanDetailPage() {
         <SamplingPanel planId={p.plan_id} />
       )}
       {activeTab === 'certificates' && (
-        <CertificatesPanel planId={p.plan_id} />
+        <CertificatesPanel planId={p.plan_id} canManage={canManageCertificates} />
       )}
       {activeTab === 'resolutions' && (
         <ResolutionsPanel planId={p.plan_id} />
@@ -266,7 +255,7 @@ export function QualityInspectionPlanDetailPage() {
 
 /* ── Panel components ─────────────────────────────────────────────────────── */
 
-function SummaryPanel({ plan, capabilities }: { plan: QualityInspectionPlan; capabilities: QualityInspectionPlanCapabilities | null }) {
+function SummaryPanel({ plan }: { plan: QualityInspectionPlan }) {
   return (
     <div className="space-y-4">
       <section className="rounded-xl border border-[#EEF2F5] bg-white p-4">
@@ -313,24 +302,12 @@ function SummaryPanel({ plan, capabilities }: { plan: QualityInspectionPlan; cap
         </div>
       </section>
 
-      {capabilities && (
-        <section className="rounded-xl border border-[#EEF2F5] bg-white p-4">
-          <h2 className="text-xs font-bold text-slate-900 mb-3">Permisos</h2>
-          <div className="flex flex-wrap gap-1.5">
-            {(Object.entries(capabilities) as [string, boolean][]).filter(([k]) => k.startsWith('can_') && capabilities[k as keyof QualityInspectionPlanCapabilities]).map(([key]) => (
-              <span key={key} className="inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                {key.replace('can_', '').replace(/_/g, ' ')}
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   )
 }
 
 function VersionsPanel({ planId }: { planId: string }) {
-  const versions = useQuery(
+  const versions = useQuery<QualityInspectionPlanVersion[]>(
     ['quality-inspection-plans', 'versions', planId],
     `/logistics/quality-inspection-plans/${planId}/versions`,
   )
@@ -338,20 +315,20 @@ function VersionsPanel({ planId }: { planId: string }) {
   if (versions.isLoading) return <LoadingSkeleton rows={3} />
   if (versions.isError) return <Alert variant="error">{getErrorMessage(versions.error)}</Alert>
 
-  const items = (versions.data as { items?: unknown[] } | undefined)?.items ?? []
+  const items = versions.data ?? []
   if (items.length === 0) {
     return <EmptyState title="Sin versiones" description="Este plan aún no tiene versiones registradas." />
   }
 
   return (
     <div className="space-y-2">
-      {(items as Record<string, unknown>[]).map((v) => (
-        <div key={String(v.version_id)} className="flex items-center justify-between rounded-xl border border-[#EEF2F5] bg-white p-3">
+      {items.map((v) => (
+        <div key={v.version_id} className="flex items-center justify-between rounded-xl border border-[#EEF2F5] bg-white p-3">
           <div>
-            <span className="font-mono text-xs font-bold text-[#1F4E6D]">v{String(v.version_number)}</span>
-            <span className="ml-2 text-[11px] text-slate-500">{String(v.status)}</span>
+            <span className="font-mono text-xs font-bold text-[#1F4E6D]">v{v.version_number}</span>
+            <span className="ml-2 text-[11px] text-slate-500">{v.status}</span>
           </div>
-          <span className="text-[10px] text-slate-400">{String(v.created_at)}</span>
+          <span className="text-[10px] text-slate-400">{v.created_at}</span>
         </div>
       ))}
     </div>
@@ -359,7 +336,7 @@ function VersionsPanel({ planId }: { planId: string }) {
 }
 
 function ScopesPanel({ planId }: { planId: string }) {
-  const scopes = useQuery(
+  const scopes = useQuery<QualityPlanScope[]>(
     ['quality-inspection-plans', 'scopes', planId],
     `/logistics/quality-inspection-plans/${planId}/scopes`,
   )
@@ -367,20 +344,20 @@ function ScopesPanel({ planId }: { planId: string }) {
   if (scopes.isLoading) return <LoadingSkeleton rows={3} />
   if (scopes.isError) return <Alert variant="error">{getErrorMessage(scopes.error)}</Alert>
 
-  const items = (scopes.data as { items?: unknown[] } | undefined)?.items ?? []
+  const items = scopes.data ?? []
   if (items.length === 0) {
     return <EmptyState title="Sin ámbitos" description="No hay productos o categorías asociados a este plan." />
   }
 
   return (
     <div className="space-y-2">
-      {(items as Record<string, unknown>[]).map((s) => (
-        <div key={String(s.scope_id)} className="flex items-center justify-between rounded-xl border border-[#EEF2F5] bg-white p-3">
+      {items.map((s) => (
+        <div key={s.scope_id} className="flex items-center justify-between rounded-xl border border-[#EEF2F5] bg-white p-3">
           <div>
-            <span className="text-xs font-semibold text-slate-800">{String(s.product_name ?? s.category_name ?? '—')}</span>
-            <span className="ml-2 text-[10px] text-slate-500">{String(s.scope_type)} · {String(s.action)}</span>
+            <span className="text-xs font-semibold text-slate-800">{s.product_name ?? s.category_name ?? '—'}</span>
+            <span className="ml-2 text-[10px] text-slate-500">{s.scope_type} · {s.action}</span>
           </div>
-          <span className="text-[10px] text-slate-400">{String(s.specificity)}</span>
+          <span className="text-[10px] text-slate-400">{s.specificity}</span>
         </div>
       ))}
     </div>
@@ -388,7 +365,7 @@ function ScopesPanel({ planId }: { planId: string }) {
 }
 
 function ControlsPanel({ planId }: { planId: string }) {
-  const controls = useQuery(
+  const controls = useQuery<QualityControlDefinition[]>(
     ['quality-inspection-plans', 'controls', planId],
     `/logistics/quality-inspection-plans/${planId}/controls`,
   )
@@ -396,23 +373,23 @@ function ControlsPanel({ planId }: { planId: string }) {
   if (controls.isLoading) return <LoadingSkeleton rows={3} />
   if (controls.isError) return <Alert variant="error">{getErrorMessage(controls.error)}</Alert>
 
-  const items = (controls.data as { items?: unknown[] } | undefined)?.items ?? []
+  const items = controls.data ?? []
   if (items.length === 0) {
     return <EmptyState title="Sin controles" description="No hay controles definidos para este plan." />
   }
 
   return (
     <div className="space-y-2">
-      {(items as Record<string, unknown>[]).map((c) => (
-        <div key={String(c.control_id)} className="flex items-center justify-between rounded-xl border border-[#EEF2F5] bg-white p-3">
+      {items.map((c) => (
+        <div key={c.control_id} className="flex items-center justify-between rounded-xl border border-[#EEF2F5] bg-white p-3">
           <div>
-            <span className="font-mono text-xs font-bold text-[#1F4E6D]">{String(c.code)}</span>
-            <span className="ml-2 text-xs font-semibold text-slate-800">{String(c.name)}</span>
-            <span className="ml-2 text-[10px] text-slate-500">{String(c.control_type)}</span>
+            <span className="font-mono text-xs font-bold text-[#1F4E6D]">{c.code}</span>
+            <span className="ml-2 text-xs font-semibold text-slate-800">{c.name}</span>
+            <span className="ml-2 text-[10px] text-slate-500">{c.control_type}</span>
           </div>
           <div className="flex gap-1.5">
-            {Boolean(c.required) && <span className="text-[9px] font-bold text-red-600">REQ</span>}
-            {Boolean(c.blocking_future) && <span className="text-[9px] font-bold text-amber-600">BLOCK</span>}
+            {c.required && <span className="text-[9px] font-bold text-red-600">REQ</span>}
+            {c.blocking_future && <span className="text-[9px] font-bold text-amber-600">BLOCK</span>}
           </div>
         </div>
       ))}
@@ -420,128 +397,70 @@ function ControlsPanel({ planId }: { planId: string }) {
   )
 }
 
-function TolerancesPanel({ planId }: { planId: string }) {
-  const tolerances = useQuery(
-    ['quality-inspection-plans', 'tolerances', planId],
-    `/logistics/quality-inspection-plans/${planId}/tolerances`,
+function TolerancesPanel({ planId: _planId }: { planId: string }) {
+  return (
+    <Alert variant="info">
+      Las tolerancias no están disponibles como colección del plan. Se administran por control desde la pantalla de Tolerancias.
+    </Alert>
+  )
+}
+
+function SamplingPanel({ planId: _planId }: { planId: string }) {
+  return (
+    <Alert variant="info">
+      El muestreo no está disponible como colección del plan. Se administra por control desde la pantalla de Muestreo.
+    </Alert>
+  )
+}
+
+function CertificatesPanel({ planId, canManage }: { planId: string; canManage: boolean }) {
+  const [controlId, setControlId] = useState('')
+  const controls = useQuery<QualityControlDefinition[]>(
+    ['quality-inspection-plans', 'certificate-controls', planId],
+    `/logistics/quality-inspection-plans/${planId}/controls`,
   )
 
-  if (tolerances.isLoading) return <LoadingSkeleton rows={3} />
-  if (tolerances.isError) return <Alert variant="error">{getErrorMessage(tolerances.error)}</Alert>
-
-  const items = (tolerances.data as { items?: unknown[] } | undefined)?.items ?? []
-  if (items.length === 0) {
-    return <EmptyState title="Sin tolerancias" description="No hay tolerancias definidas para este plan." />
-  }
+  if (controls.isLoading) return <LoadingSkeleton rows={2} />
+  if (controls.isError) return <Alert variant="error">{getErrorMessage(controls.error)}</Alert>
 
   return (
-    <div className="space-y-2">
-      {(items as Record<string, unknown>[]).map((t) => (
-        <div key={String(t.tolerance_id)} className="flex items-center justify-between rounded-xl border border-[#EEF2F5] bg-white p-3">
-          <div>
-            <span className="font-mono text-xs font-bold text-[#1F4E6D]">{String(t.code)}</span>
-            <span className="ml-2 text-xs font-semibold text-slate-800">{String(t.name)}</span>
-            <span className="ml-2 text-[10px] text-slate-500">{String(t.tolerance_type)} · {String(t.dimension)}</span>
-          </div>
-          <span className="text-[10px] text-slate-400">Target: {String(t.target_value)}</span>
-        </div>
-      ))}
+    <div className="space-y-4">
+      <label className="block text-xs font-semibold text-slate-600">
+        Control
+        <select value={controlId} onChange={(event) => setControlId(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+          <option value="">Seleccione un control</option>
+          {(controls.data ?? []).map((control) => (
+            <option key={control.control_id} value={control.control_id}>{control.code} — {control.name}</option>
+          ))}
+        </select>
+      </label>
+      <QualityCertificateRequirementsEditor controlId={controlId || null} canManage={canManage} />
     </div>
   )
 }
 
-function SamplingPanel({ planId }: { planId: string }) {
-  const sampling = useQuery(
-    ['quality-inspection-plans', 'sampling', planId],
-    `/logistics/quality-inspection-plans/${planId}/sampling`,
+function ResolutionsPanel({ planId: _planId }: { planId: string }) {
+  const [productInput, setProductInput] = useState('')
+  const [productId, setProductId] = useState('')
+  const resolution = useQuery<Record<string, unknown>>(
+    ['quality-inspection-plans', 'resolution', productId],
+    '/logistics/quality-inspection-plans/resolve',
+    { product_id: productId },
+    { enabled: Boolean(productId) },
   )
-
-  if (sampling.isLoading) return <LoadingSkeleton rows={2} />
-  if (sampling.isError) return <Alert variant="error">{getErrorMessage(sampling.error)}</Alert>
-
-  const items = (sampling.data as { items?: unknown[] } | undefined)?.items ?? []
-  if (items.length === 0) {
-    return <EmptyState title="Sin planes de muestreo" description="No hay planes de muestreo asociados." />
-  }
 
   return (
-    <div className="space-y-2">
-      {(items as Record<string, unknown>[]).map((s) => (
-        <div key={String(s.sampling_id)} className="flex items-center justify-between rounded-xl border border-[#EEF2F5] bg-white p-3">
-          <div>
-            <span className="font-mono text-xs font-bold text-[#1F4E6D]">{String(s.code)}</span>
-            <span className="ml-2 text-xs font-semibold text-slate-800">{String(s.name)}</span>
-            <span className="ml-2 text-[10px] text-slate-500">{String(s.sampling_type)} · {String(s.sample_unit)}</span>
-          </div>
-          <span className="text-[10px] text-slate-400">{String(s.selection_method)}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function CertificatesPanel({ planId }: { planId: string }) {
-  const certificates = useQuery(
-    ['quality-inspection-plans', 'certificates', planId],
-    `/logistics/quality-inspection-plans/${planId}/certificates`,
-  )
-
-  if (certificates.isLoading) return <LoadingSkeleton rows={2} />
-  if (certificates.isError) return <Alert variant="error">{getErrorMessage(certificates.error)}</Alert>
-
-  const items = (certificates.data as { items?: unknown[] } | undefined)?.items ?? []
-  if (items.length === 0) {
-    return <EmptyState title="Sin requisitos de certificado" description="No hay requisitos de certificados definidos." />
-  }
-
-  return (
-    <div className="space-y-2">
-      {(items as Record<string, unknown>[]).map((c) => (
-        <div key={String(c.requirement_id)} className="flex items-center justify-between rounded-xl border border-[#EEF2F5] bg-white p-3">
-          <div>
-            <span className="font-mono text-xs font-bold text-[#1F4E6D]">{String(c.code)}</span>
-            <span className="ml-2 text-xs font-semibold text-slate-800">{String(c.name)}</span>
-          </div>
-          <div className="flex gap-1.5">
-            {Boolean(c.required) && <span className="text-[9px] font-bold text-red-600">REQ</span>}
-            {Boolean(c.file_required) && <span className="text-[9px] font-bold text-amber-600">ARCHIVO</span>}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function ResolutionsPanel({ planId }: { planId: string }) {
-  const resolutions = useQuery(
-    ['quality-inspection-plans', 'resolutions', planId],
-    `/logistics/quality-inspection-plans/${planId}/resolutions`,
-  )
-
-  if (resolutions.isLoading) return <LoadingSkeleton rows={3} />
-  if (resolutions.isError) return <Alert variant="error">{getErrorMessage(resolutions.error)}</Alert>
-
-  const items = (resolutions.data as { items?: unknown[] } | undefined)?.items ?? []
-  if (items.length === 0) {
-    return <EmptyState title="Sin resoluciones" description="No hay resoluciones de conflictos registradas." />
-  }
-
-  return (
-    <div className="space-y-2">
-      {(items as Record<string, unknown>[]).map((r, i) => (
-        <div key={String(r.product_id ?? i)} className="rounded-xl border border-[#EEF2F5] bg-white p-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-800">{String(r.product_name ?? '—')}</span>
-            <span className="font-mono text-[10px] text-slate-500">{String(r.product_sku ?? '—')}</span>
-          </div>
-          {Boolean(r.resolved_plan_code) && (
-            <p className="mt-1 text-[10px] text-slate-500">Resuelto por: {String(r.resolved_plan_code)}</p>
-          )}
-          {Boolean(r.explanation) && (
-            <p className="mt-1 text-[10px] text-slate-400">{String(r.explanation)}</p>
-          )}
-        </div>
-      ))}
+    <div className="space-y-4">
+      <form onSubmit={(event) => { event.preventDefault(); setProductId(productInput.trim()) }} className="flex gap-2">
+        <input value={productInput} onChange={(event) => setProductInput(event.target.value)} placeholder="ID de producto" className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs" />
+        <Button type="submit" size="small" disabled={!productInput.trim()}>Resolver</Button>
+      </form>
+      {!productId && <Alert variant="info">Ingrese un producto para consultar la resolución real. No se realiza ninguna petición sin ese contexto.</Alert>}
+      {resolution.isLoading && <LoadingSkeleton rows={2} />}
+      {resolution.isError && <Alert variant="error">{getErrorMessage(resolution.error)}</Alert>}
+      {resolution.data && (
+        <pre className="overflow-x-auto rounded-xl border border-[#EEF2F5] bg-slate-50 p-3 text-[10px] text-slate-700">{JSON.stringify(resolution.data, null, 2)}</pre>
+      )}
     </div>
   )
 }
@@ -585,39 +504,6 @@ function IntegrityPanel({ planId }: { planId: string }) {
   )
 }
 
-function HistoryPanel({ planId }: { planId: string }) {
-  const history = useQuery(
-    ['quality-inspection-plans', 'history', planId],
-    `/logistics/quality-inspection-plans/${planId}/history`,
-  )
-
-  if (history.isLoading) return <LoadingSkeleton rows={4} />
-  if (history.isError) return <Alert variant="error">{getErrorMessage(history.error)}</Alert>
-
-  const items = (history.data as { items?: unknown[] } | undefined)?.items ?? []
-  if (items.length === 0) {
-    return <EmptyState title="Sin historial" description="No hay eventos registrados para este plan." />
-  }
-
-  return (
-    <div className="space-y-2">
-      {(items as Record<string, unknown>[]).map((e) => (
-        <div key={String(e.event_id)} className="flex items-start gap-3 rounded-xl border border-[#EEF2F5] bg-white p-3">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
-            {String(e.event_type).slice(0, 2)}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-800">{String(e.action)}</span>
-              <span className="text-[10px] text-slate-400">{String(e.timestamp)}</span>
-            </div>
-            <p className="mt-0.5 text-[10px] text-slate-500">
-              por {(e.actor as { display_name?: string } | undefined)?.display_name ?? '—'}
-            </p>
-            {Boolean(e.reason) && <p className="mt-0.5 text-[10px] text-slate-400">{String(e.reason)}</p>}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
+function HistoryPanel({ planId: _planId }: { planId: string }) {
+  return <Alert variant="info">Historial no disponible: el backend publicado no expone una ruta de historial para planes de inspección. Vista de solo lectura, sin petición.</Alert>
 }

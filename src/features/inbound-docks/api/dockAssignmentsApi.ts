@@ -1,5 +1,6 @@
 import { apiRequest } from '../../../api/api-client'
 import { getCsrfToken } from '../../../api/csrf'
+import { contractGap } from '../../../api/contract-availability'
 import type {
   InboundDockAssignment,
   DockAssignmentPlan,
@@ -94,21 +95,12 @@ export const dockAssignmentsApi = {
     })
   },
 
-  async getPlan(planId: string): Promise<DockAssignmentPlan> {
-    try {
-      return await apiRequest<DockAssignmentPlan>({ path: `${BASE_PLANS}/${planId}` })
-    } catch {
-      return {
-        id: planId,
-        queue_entry_id: 'q-1',
-        compatible_docks: [],
-        incompatible_docks: [],
-        recommendation: null,
-        expires_at: new Date(Date.now() + 3600000).toISOString(),
-        server_time: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      }
-    }
+  /**
+   * El plan no es un recurso consultable: el backend lo CALCULA al crearlo y
+   * expira. Se conserva en el estado de quien lo pidió; no hay GET que emitir.
+   */
+  async getPlan(_planId: string): Promise<DockAssignmentPlan> {
+    throw contractGap('Releer un plan de asignación ya calculado')
   },
 
   async executePlan(data: ExecuteDockAssignmentPlanRequest): Promise<InboundDockAssignment> {

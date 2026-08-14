@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react'
 import { Button } from '../../../components/common/Button'
 import { useMutation } from '../../inbound-docks/hooks/useQuery'
-import { apiRequest, getCsrfToken } from '../../../api/api-client'
 import { StatusPill, SectionPanel, EmptyPanel, ErrorPanel } from '../../inbound-docks/components/ui/Primitives'
 import { QualityPlanVersionWizard } from './QualityPlanVersionWizard'
+import { qualityPlanVersionsApi } from '../api/qualityPlanVersionsApi'
 import type {
   QualityInspectionPlanVersion,
   QualityInspectionPlanCapabilities,
@@ -51,66 +51,16 @@ export function QualityPlanVersionsPanel({
 }) {
   const [wizardOpen, setWizardOpen] = useState(false)
   const [editingVersionId, setEditingVersionId] = useState<string | undefined>(undefined)
-  const [, setHistoryVersionId] = useState<string | null>(null)
   const [compareIds, setCompareIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const cloneVersionMutation = useMutation<{ versionId: string }, { version_id: string }>(
-    async (input) => {
-      const csrf = await getCsrfToken()
-      return apiRequest<{ version_id: string }>({
-        path: `/logistics/quality-inspection-plans/versions/${input.versionId}/clone`,
-        method: 'POST',
-        body: {},
-        headers: { 'X-CSRF-Token': csrf },
-      })
-    },
-    {
-      onSuccess: (result) => {
-        setEditingVersionId(result?.version_id)
-        setWizardOpen(true)
-        onRefresh()
-      },
-      onError: (err) => setError(err.message),
-    },
-  )
-
-  const validateMutation = useMutation<{ versionId: string }, void>(
-    async (input) => {
-      const csrf = await getCsrfToken()
-      await apiRequest({
-        path: `/logistics/quality-inspection-plans/versions/${input.versionId}/validate`,
-        method: 'POST',
-        body: {},
-        headers: { 'X-CSRF-Token': csrf },
-      })
-    },
-    { onSuccess: () => onRefresh(), onError: (err) => setError(err.message) },
-  )
-
   const activateMutation = useMutation<{ versionId: string }, void>(
-    async (input) => {
-      const csrf = await getCsrfToken()
-      await apiRequest({
-        path: `/logistics/quality-inspection-plans/versions/${input.versionId}/activate`,
-        method: 'POST',
-        body: { confirmation: true },
-        headers: { 'X-CSRF-Token': csrf },
-      })
-    },
+    async (input) => { await qualityPlanVersionsApi.activate(input.versionId, { confirmation: true }) },
     { onSuccess: () => onRefresh(), onError: (err) => setError(err.message) },
   )
 
   const retireMutation = useMutation<{ versionId: string; reason: string }, void>(
-    async (input) => {
-      const csrf = await getCsrfToken()
-      await apiRequest({
-        path: `/logistics/quality-inspection-plans/versions/${input.versionId}/retire`,
-        method: 'POST',
-        body: { reason: input.reason },
-        headers: { 'X-CSRF-Token': csrf },
-      })
-    },
+    async (input) => { await qualityPlanVersionsApi.retire(input.versionId, { reason: input.reason }) },
     { onSuccess: () => onRefresh(), onError: (err) => setError(err.message) },
   )
 
@@ -123,14 +73,6 @@ export function QualityPlanVersionsPanel({
     setEditingVersionId(undefined)
     setWizardOpen(true)
   }, [])
-
-  const handleClone = useCallback((versionId: string) => {
-    cloneVersionMutation.mutate({ versionId })
-  }, [cloneVersionMutation])
-
-  const handleValidate = useCallback((versionId: string) => {
-    validateMutation.mutate({ versionId })
-  }, [validateMutation])
 
   const handleActivate = useCallback((versionId: string) => {
     activateMutation.mutate({ versionId })
@@ -147,10 +89,6 @@ export function QualityPlanVersionsPanel({
       if (prev.length >= 2) return [prev[1], versionId]
       return [...prev, versionId]
     })
-  }, [])
-
-  const handleViewHistory = useCallback((versionId: string) => {
-    setHistoryVersionId(versionId)
   }, [])
 
   if (error) {
@@ -219,7 +157,6 @@ export function QualityPlanVersionsPanel({
               const isActive = v.status === 'ACTIVE'
               const isRetired = v.status === 'RETIRED'
               const canEditThis = isDraft && capabilities.can_manage_controls
-              const canValidateThis = isDraft && capabilities.can_validate
               const canActivateThis = v.validation_status === 'VALID' && capabilities.can_activate && !isActive && !isRetired
               const canRetireThis = isActive && capabilities.can_retire
               const isCompareSelected = compareIds.includes(v.version_id)
@@ -265,21 +202,11 @@ export function QualityPlanVersionsPanel({
                     <div className="flex items-center justify-end gap-1 flex-wrap">
                       {canEditThis && (
                         <Button variant="ghost" size="small" onClick={() => handleEditDraft(v.version_id)}>
-                          Editar
+                          Configurar
                         </Button>
                       )}
                       {isActive && (
                         <StatusPill tone="success">Activa</StatusPill>
-                      )}
-                      {!isDraft && !isActive && !isRetired && capabilities.can_clone && (
-                        <Button variant="ghost" size="small" onClick={() => handleClone(v.version_id)}>
-                          Clonar
-                        </Button>
-                      )}
-                      {canValidateThis && (
-                        <Button variant="ghost" size="small" onClick={() => handleValidate(v.version_id)}>
-                          Validar
-                        </Button>
                       )}
                       {canActivateThis && (
                         <Button variant="primary" size="small" onClick={() => handleActivate(v.version_id)}>
@@ -298,11 +225,6 @@ export function QualityPlanVersionsPanel({
                           onClick={() => handleToggleCompare(v.version_id)}
                         >
                           {isCompareSelected ? 'Quitar' : 'Comparar'}
-                        </Button>
-                      )}
-                      {capabilities.can_view_history && (
-                        <Button variant="ghost" size="small" onClick={() => handleViewHistory(v.version_id)}>
-                          Historial
                         </Button>
                       )}
                     </div>

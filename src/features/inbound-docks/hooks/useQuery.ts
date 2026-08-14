@@ -68,6 +68,7 @@ export function useQuery<T>(
   const [status, setStatus] = useState<number | null>(null)
   const lastKeyRef = useRef<QueryKey | undefined>(undefined)
   const enabled = options.enabled ?? true
+  const enabledRef = useRef<boolean>(enabled)
   const paramsRef = useRef<string>('')
   const paramsSnapshot = useMemo(() => JSON.stringify(params ?? {}), [params])
   const pathRef = useRef<string>(path)
@@ -111,9 +112,11 @@ export function useQuery<T>(
   useEffect(() => {
     const keyChanged = !keysAreEqual(lastKeyRef.current, key)
     const paramsChanged = paramsRef.current !== paramsSnapshot
-    if (keyChanged || paramsChanged) {
+    const enabledChanged = enabledRef.current !== enabled
+    if (keyChanged || paramsChanged || enabledChanged) {
       lastKeyRef.current = key
       paramsRef.current = paramsSnapshot
+      enabledRef.current = enabled
       setIsLoading(Boolean(enabled))
       setData(undefined)
       setIsError(false)

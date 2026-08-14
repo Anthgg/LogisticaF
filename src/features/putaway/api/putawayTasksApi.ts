@@ -1,4 +1,10 @@
 import { apiRequest, getCsrfToken } from '../../../api/api-client'
+import type {
+  PutawayExecutionSessionApi,
+  PutawayExecutionSessionCreateRequest,
+  PutawayPlacementConfirmRequest,
+  PutawayPlacementConfirmationApi,
+} from '../types/putaway-api'
 
 const BASE = '/logistics/putaway/tasks'
 
@@ -94,7 +100,10 @@ export const putawayTasksApi = {
   },
 
   /** POST /putaway/tasks/{task_id}/sessions */
-  async createSession(taskId: string, data: Record<string, unknown> = {}): Promise<unknown> {
+  async createSession(
+    taskId: string,
+    data: PutawayExecutionSessionCreateRequest,
+  ): Promise<PutawayExecutionSessionApi> {
     const csrf = await withCsrf()
     return apiRequest({
       path: `${BASE}/${taskId}/sessions`,
@@ -105,7 +114,10 @@ export const putawayTasksApi = {
   },
 
   /** POST /putaway/tasks/{task_id}/placements */
-  async createPlacement(taskId: string, data: Record<string, unknown>): Promise<unknown> {
+  async createPlacement(
+    taskId: string,
+    data: PutawayPlacementConfirmRequest,
+  ): Promise<PutawayPlacementConfirmationApi> {
     const csrf = await withCsrf()
     return apiRequest({
       path: `${BASE}/${taskId}/placements`,
@@ -179,16 +191,7 @@ export const putawayTasksApi = {
     })
   },
 
-  // Legacy helpers
-  async divertTask(data: { task_id: string; diversion_reason: string }): Promise<unknown> {
-    return this.createOverride(data.task_id, { reason: data.diversion_reason })
-  },
-  async cancelTask(taskId: string): Promise<unknown> {
-    return this.createException(taskId, { type: 'cancelled' })
-  },
-  async updatePriority(data: { task_id: string; priority: string }): Promise<unknown> {
-    return this.getTask(data.task_id)
-  },
+  // Client-side batches preserve the real per-task endpoints.
   async bulkAssign(data: { task_ids: string[]; user_id: string }): Promise<unknown[]> {
     const results = await Promise.all(
       data.task_ids.map((task_id) => this.assignTask({ task_id, user_id: data.user_id })),

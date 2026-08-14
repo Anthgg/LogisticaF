@@ -53,8 +53,9 @@ export const inboundReceiptsApi = {
     return apiRequest({ path: `${BASE}/${receiptId}`, method: 'GET' })
   },
 
-  async getSummary(): Promise<InboundReceiptSummary> {
-    return apiRequest({ path: `${BASE}/summary`, method: 'GET' })
+  // El resumen es de UN acta: `summary` global chocaría con `{receipt_id}`.
+  async getSummary(receiptId: string): Promise<InboundReceiptSummary> {
+    return apiRequest({ path: `${BASE}/${receiptId}/summary`, method: 'GET' })
   },
 
   async getProgress(receiptId: string): Promise<InboundReceiptProgress> {
@@ -81,14 +82,22 @@ export const inboundReceiptsApi = {
     return apiRequest({ path: `${BASE}/${receiptId}/difference-preparation`, method: 'GET' })
   },
 
+  /**
+   * No hay recurso "descargas elegibles": la elegibilidad es un estado de la
+   * descarga, así que se consulta el listado real filtrado por descarga
+   * completada. El backend rechaza la creación si la operación no lo permite.
+   */
   async listEligibleUnloadings(): Promise<EligibleUnloadingOperation[]> {
-    return apiRequest({ path: `${BASE}/eligible-unloadings`, method: 'GET' })
+    return apiRequest({
+      path: '/logistics/unloading-operations?unloading_status=COMPLETED&page=1&page_size=100',
+      method: 'GET',
+    })
   },
 
   async createFromUnloading(data: CreateInboundReceiptFromUnloadingRequest): Promise<InboundReceipt> {
     const csrf = await withCsrf()
     return apiRequest({
-      path: BASE,
+      path: `${BASE}/from-unloading-operation`,
       method: 'POST',
       headers: { ...csrf, 'Idempotency-Key': generateKey() },
       body: data,

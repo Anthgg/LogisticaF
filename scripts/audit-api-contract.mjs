@@ -22,11 +22,27 @@ import { fileURLToPath } from 'node:url'
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const SRC = join(ROOT, 'src')
 const MANIFEST = join(ROOT, 'scripts', 'contracts', 'backend-routes.phase045.json')
+const EXPECTED_BACKEND_SHA = '5486774aff0d100fa5210107bd4397944267e7a0'
 
 const TEST_FILE = /(^|[\\/])(test|tests|__tests__|e2e)[\\/]|\.(test|spec)\.[tj]sx?$/
 
+// Estados que rompen el gate.
+const FAILING = new Set([
+  'METHOD_MISMATCH',
+  'PATH_MISMATCH',
+  'STATIC_COLLIDES_WITH_PATH_PARAM',
+  'UNRESOLVED_DYNAMIC_PATH',
+  'UNPARSED_CALL',
+])
+
 // ── Manifest ────────────────────────────────────────────────────────────────
 const manifest = JSON.parse(await readFile(MANIFEST, 'utf8'))
+if (manifest.source_backend_sha !== EXPECTED_BACKEND_SHA) {
+  console.error(
+    `manifest SHA mismatch: expected ${EXPECTED_BACKEND_SHA}, received ${manifest.source_backend_sha ?? '(missing)'}`,
+  )
+  process.exit(1)
+}
 const OPERATIONS = manifest.operations.map((operation) => ({
   ...operation,
   segments: operation.path.replace(/^\//, '').split('/'),
@@ -40,7 +56,12 @@ for (const operation of OPERATIONS) {
 }
 
 // ── Lectura de literales (template literals con ${...} anidados) ────────────
-function readLiteral(source, index) {
+/**
+ * Lee el literal que empieza en `index`. Las interpolaciones se sustituyen por
+ * el valor de la constante cuando se conoce (`${BASE}` -> `/logistics/...`) y
+ * por `${}` cuando no, que es lo que `normalize` sabe convertir en parámetro.
+ */
+function readLiteral(source, index, constants) {
   const quote = source[index]
   if (!'`\'"'.includes(quote)) return null
   let out = ''
@@ -52,7 +73,7 @@ function readLiteral(source, index) {
       i += 2
       continue
     }
-    if (char === quote) return out
+    if (char === quote) return { text: out, end: i + 1 }
     if (quote === '`' && char === '$' && source[i + 1] === '{') {
       let depth = 1
       let k = i + 2
@@ -61,50 +82,203 @@ function readLiteral(source, index) {
         else if (source[k] === '}') depth -= 1
         k += 1
       }
-      out += '${}'
+      const expression = source.slice(i + 2, k - 1).trim()
+      out += constants?.get(expression) ?? '${}'
       i = k
       continue
     }
     out += char
     i += 1
   }
-  return out
+  return null
 }
 
-function extractCalls(source) {
+/** `const X = '...'` de nivel de módulo, para resolver `path: X`. */
+function collectConstants(source, inherited) {
+  const constants = new Map(inherited)
+  for (const match of source.matchAll(/\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*(?=['"`])/g)) {
+    const literal = readLiteral(source, match.index + match[0].length, constants)
+    if (literal) constants.set(match[1], literal.text)
+  }
+  // Alias entre bases: `const BASE = BALANCES_BASE_PATH`.
+  for (const match of source.matchAll(/\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)\s*(?:$|[\n;])/gm)) {
+    const target = constants.get(match[2])
+    if (target !== undefined) constants.set(match[1], target)
+  }
+  return constants
+}
+
+/**
+ * Valor de la declaración `const <name> =` más cercana **antes** de `before`.
+ * Resuelve `const path = cond ? \`/a\` : \`/b\`` sin depender del nombre, que
+ * se repite en cada método del módulo.
+ */
+function findDeclaration(source, name, before) {
+  let declaration = null
+  for (const match of source.matchAll(new RegExp(`\\bconst\\s+${name}\\s*=\\s*`, 'g'))) {
+    if (match.index >= before) break
+    declaration = match
+  }
+  if (!declaration) return null
+
+  const start = declaration.index + declaration[0].length
+  let depth = 0
+  for (let i = start; i < source.length; i += 1) {
+    const char = source[i]
+    if ('([{'.includes(char)) depth += 1
+    else if (')]}'.includes(char)) depth -= 1
+    else if ('`\'"'.includes(char)) {
+      const literal = readLiteral(source, i)
+      if (literal) i = literal.end - 1
+    } else if (char === ';' && depth === 0) return source.slice(start, i)
+    else if (char === '\n' && depth === 0) {
+      // La sentencia sigue si la línea siguiente encadena (ternario, acceso…).
+      const next = source.slice(i + 1).match(/^\s*(\S)/)
+      if (!next || !'?:.+'.includes(next[1])) return source.slice(start, i)
+    }
+  }
+  return null
+}
+
+/** Recorta el texto entre delimitadores balanceados a partir de `open`. */
+function readBalanced(source, open, [start, close]) {
+  let depth = 1
+  let i = open + 1
+  while (i < source.length && depth) {
+    if (source[i] === start) depth += 1
+    else if (source[i] === close) depth -= 1
+    i += 1
+  }
+  return source.slice(open, i)
+}
+
+/**
+ * Todos los paths que una expresión puede producir. Cubre el literal directo,
+ * la constante (`path: BASE`), el ternario (`cond ? '/x' : ''`) y el helper
+ * (`withQuery('/x', {...})`). Devuelve `null` si nada es legible.
+ */
+function resolvePathCandidates(expression, constants, context) {
+  const trimmed = expression.trim()
+  const asConstant = constants.get(trimmed)
+  if (asConstant !== undefined) return [asConstant]
+
+  // `path` a secas o `path: url`: se busca la declaración local más cercana.
+  if (context && context.depth < 3 && /^[A-Za-z_$][\w$]*$/.test(trimmed)) {
+    const declaration = findDeclaration(context.source, trimmed, context.offset)
+    if (declaration === null) return null
+    return resolvePathCandidates(declaration, constants, { ...context, depth: context.depth + 1 })
+  }
+
+  const found = []
+  for (let i = 0; i < expression.length; i += 1) {
+    const literal = readLiteral(expression, i, constants)
+    if (!literal) continue
+    found.push(literal.text)
+    i = literal.end - 1
+  }
+  // Una expresión puede contener literales que no son el path (claves de query,
+  // valores de orden). El path siempre empieza en `/`.
+  const paths = found.filter((value) => value.startsWith('/'))
+
+  // `withQuery(path, query)`: el path es el primer argumento del helper.
+  if (!paths.length && context && context.depth < 3) {
+    const call = trimmed.match(/^[A-Za-z_$][\w$]*\s*\(/)
+    if (call) {
+      const args = readBalanced(trimmed, call[0].length - 1, ['(', ')'])
+      const first = splitTopLevel(args.slice(1, -1))[0]
+      if (first !== undefined && first.trim() !== '') {
+        return resolvePathCandidates(first, constants, { ...context, depth: context.depth + 1 })
+      }
+    }
+  }
+
+  if (!found.length) return null
+  // Todos los literales vacíos => capacidad deshabilitada a propósito.
+  if (!paths.length) return found.every((value) => value === '') ? [] : null
+  return paths
+}
+
+function extractCalls(source, inheritedConstants) {
+  const constants = collectConstants(source, inheritedConstants)
   const calls = []
+
+  const push = (expression, method, offset) => {
+    const candidates = expression === null
+      ? null
+      : resolvePathCandidates(expression, constants, { source, offset, depth: 0 })
+    if (candidates === null) {
+      // Identificador sin literal detrás: es un wrapper que recibe el path de
+      // quien lo llama, y esas llamadas se auditan por su cuenta.
+      const passthrough = expression !== null && /^\s*[A-Za-z_$][\w$]*\s*$/.test(expression)
+      calls.push({ path: null, method, offset, unparsed: !passthrough, passthrough })
+      return
+    }
+    for (const path of candidates) calls.push({ path, method, offset })
+  }
 
   // apiRequest({ path, method }): se recorta EXACTAMENTE el objeto de opciones
   // por balance de llaves; si no, el `method:` de una llamada vecina contamina.
   for (const match of source.matchAll(/\bapiRequest\s*(?:<[^>]*>)?\s*\(\s*\{/g)) {
-    const open = source.indexOf('{', match.index)
-    let depth = 1
-    let end = open + 1
-    while (end < source.length && depth) {
-      if (source[end] === '{') depth += 1
-      else if (source[end] === '}') depth -= 1
-      end += 1
-    }
-    const options = source.slice(open, end)
-    const pathKey = options.match(/\bpath:\s*/)
-    if (!pathKey) continue
-    const literal = readLiteral(options, pathKey.index + pathKey[0].length)
-    if (!literal) continue
+    // La llave es la ÚLTIMA del match: `apiRequest<{ id: string }>({` tiene una
+    // llave dentro del genérico, y buscar la primera cortaría ahí.
+    const options = readBalanced(source, match.index + match[0].length - 1, ['{', '}'])
     const method = options.match(/\bmethod:\s*['"]([A-Za-z]+)['"]/)?.[1]?.toUpperCase() ?? 'GET'
-    calls.push({ path: literal, method, offset: match.index })
+    const pathKey = options.match(/\bpath:\s*/)
+    // Una llamada que no se puede leer NO se descarta: se marca. Un auditor que
+    // ignora en silencio lo que no entiende deja de ser una red de seguridad.
+    const value = pathKey
+      ? sliceValue(options, pathKey.index + pathKey[0].length)
+      : (/\bpath\s*[,}]/.test(options) ? 'path' : null) // forma abreviada `{ path, ... }`
+    push(value, method, match.index)
   }
 
-  // useQuery(key, path, ...) -> siempre GET
-  for (const match of source.matchAll(/\buseQuery\s*(?:<[^>]*>)?\s*\(/g)) {
-    const window = source.slice(match.index + 1, match.index + 900)
-    const comma = window.search(/,\s*(?=[`'"])/)
-    if (comma === -1) continue
-    const literal = readLiteral(window, window.slice(comma).search(/[`'"]/) + comma)
-    if (!literal) continue
-    calls.push({ path: literal, method: 'GET', offset: match.index })
+  // useQuery(key, path, ...) -> siempre GET. `function useQuery(` es la
+  // declaración del hook, no una llamada.
+  for (const match of source.matchAll(/(?<!function\s)\buseQuery\s*(?:<[^>]*>)?\s*\(/g)) {
+    const args = readBalanced(source, match.index + match[0].length - 1, ['(', ')'])
+    const parts = splitTopLevel(args.slice(1, -1))
+    push(parts[1] ?? null, 'GET', match.index)
   }
 
   return calls
+}
+
+/** Valor de una propiedad: hasta la coma de su mismo nivel. */
+function sliceValue(source, start) {
+  let depth = 0
+  for (let i = start; i < source.length; i += 1) {
+    const char = source[i]
+    if ('([{'.includes(char)) depth += 1
+    else if (')]}'.includes(char)) {
+      if (depth === 0) return source.slice(start, i)
+      depth -= 1
+    } else if ('`\'"'.includes(char)) {
+      const literal = readLiteral(source, i)
+      if (literal) i = literal.end - 1
+    } else if (char === ',' && depth === 0) return source.slice(start, i)
+  }
+  return source.slice(start)
+}
+
+/** Argumentos de una llamada, separados por las comas de nivel superior. */
+function splitTopLevel(source) {
+  const parts = []
+  let depth = 0
+  let start = 0
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i]
+    if ('([{'.includes(char)) depth += 1
+    else if (')]}'.includes(char)) depth -= 1
+    else if ('`\'"'.includes(char)) {
+      const literal = readLiteral(source, i)
+      if (literal) i = literal.end - 1
+    } else if (char === ',' && depth === 0) {
+      parts.push(source.slice(start, i))
+      start = i + 1
+    }
+  }
+  parts.push(source.slice(start))
+  return parts
 }
 
 // ── Normalización ───────────────────────────────────────────────────────────
@@ -171,14 +345,41 @@ async function walk(dir, out = []) {
   return out
 }
 
-const rows = []
+const sources = new Map()
 for (const file of await walk(SRC)) {
   const rel = relative(ROOT, file).replace(/\\/g, '/')
   if (TEST_FILE.test(rel)) continue
-  const source = await readFile(file, 'utf8')
-  for (const call of extractCalls(source)) {
-    if (!call.path.startsWith('/')) continue
+  sources.set(rel, await readFile(file, 'utf8'))
+}
+
+// Las bases (`UNLOADING_OPERATIONS_BASE`, `BALANCES_BASE_PATH`…) se declaran en
+// un módulo y se importan en otro. Se comparten las que tienen un único valor
+// en todo `src`: si un nombre significa dos cosas distintas, no se adivina.
+const shared = new Map()
+for (const source of sources.values()) {
+  for (const [name, value] of collectConstants(source)) {
+    if (shared.has(name) && shared.get(name) !== value) shared.set(name, null)
+    else if (!shared.has(name)) shared.set(name, value)
+  }
+}
+const inherited = new Map([...shared].filter(([, value]) => value !== null))
+
+const rows = []
+const wrappers = []
+for (const [rel, source] of sources) {
+  for (const call of extractCalls(source, inherited)) {
     const line = source.slice(0, call.offset).split('\n').length
+    if (call.passthrough) {
+      // La definición genérica no es una llamada runtime adicional. Se reporta
+      // fuera de `rows`; sus invocaciones concretas sí se extraen y clasifican.
+      wrappers.push({ file: rel, line, method: call.method })
+      continue
+    }
+    if (call.unparsed) {
+      rows.push({ file: rel, line, method: call.method, raw: null, status: 'UNPARSED_CALL', path: '(no legible)' })
+      continue
+    }
+    if (!call.path.startsWith('/')) continue
     rows.push({ file: rel, line, method: call.method, raw: call.path, ...classify(call) })
   }
 }
@@ -189,14 +390,17 @@ const summary = rows.reduce((acc, row) => {
 }, {})
 
 if (process.argv.includes('--json')) {
-  console.log(JSON.stringify({ summary, total: rows.length, rows }, null, 1))
+  console.log(JSON.stringify({ summary, total: rows.length, wrappers, rows }, null, 1))
 } else {
   console.log(`backend manifest: ${manifest.source_backend_sha.slice(0, 7)} (${manifest.operation_count} ops)`)
   console.log(`llamadas runtime: ${rows.length}`)
   for (const [status, count] of Object.entries(summary).sort()) {
     console.log(`  ${status.padEnd(32)} ${count}`)
   }
-  const bad = rows.filter((row) => row.status !== 'MATCH')
+  if (wrappers.length) {
+    console.log(`  ${'WRAPPERS_TRACED_AT_CALL_SITES'.padEnd(32)} ${wrappers.length}`)
+  }
+  const bad = rows.filter((row) => FAILING.has(row.status))
   if (bad.length) {
     console.log('\nfuera de contrato:')
     for (const row of bad) {
@@ -206,4 +410,4 @@ if (process.argv.includes('--json')) {
   }
 }
 
-process.exitCode = rows.some((row) => row.status !== 'MATCH') ? 1 : 0
+process.exitCode = rows.some((row) => FAILING.has(row.status)) ? 1 : 0

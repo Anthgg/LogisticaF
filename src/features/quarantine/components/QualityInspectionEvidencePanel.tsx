@@ -31,11 +31,6 @@ const EVIDENCE_TYPES = [
   { value: 'OTHER', label: 'Otro' },
 ] as const
 
-interface UploadSessionState {
-  uploadSessionId: string
-  url: string
-}
-
 export function QualityInspectionEvidencePanel({
   inspectionId,
   controls,
@@ -44,7 +39,7 @@ export function QualityInspectionEvidencePanel({
   const auth = useLogisticsPermissions()
   const canUpload = auth.hasPermission(LOGISTICS_PERMISSIONS.quarantine.uploadEvidence)
 
-  const { data: evidenceData, isLoading, refetch } = useQuery<{ items: QualityInspectionEvidence[] }>(
+  const { data: evidenceData, isLoading, refetch } = useQuery<QualityInspectionEvidence[] | { items: QualityInspectionEvidence[] }>(
     ['evidence', inspectionId],
     `/logistics/quality-inspections/${inspectionId}/evidence`,
     undefined,
@@ -58,22 +53,7 @@ export function QualityInspectionEvidencePanel({
   const [tags, setTags] = useState<string>('')
   const [isSensitive, setIsSensitive] = useState<boolean>(false)
   const [fileId, setFileId] = useState<string>('')
-  const [uploadSession, setUploadSession] = useState<UploadSessionState | null>(null)
-  const [uploadingFile, setUploadingFile] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
-
-  const createSessionMutation = useMutation(
-    (input: Record<string, unknown>) =>
-      qualityInspectionEvidenceApi.createUploadSession(inspectionId, input),
-    {
-      onSuccess: (result) => {
-        setUploadSession(result as unknown as UploadSessionState)
-      },
-      onError: (err) => {
-        setError(err.message)
-      },
-    },
-  )
 
   const linkEvidenceMutation = useMutation(
     (input: Record<string, unknown>) =>
@@ -90,16 +70,9 @@ export function QualityInspectionEvidencePanel({
     },
   )
 
-  const archiveMutation = useMutation(
-    (evidenceId: string) => qualityInspectionEvidenceApi.archive(evidenceId),
-    {
-      onSuccess: () => {
-        void refetch()
-      },
-    },
-  )
-
-  const evidenceList: QualityInspectionEvidence[] = evidenceData?.items ?? []
+  const evidenceList: QualityInspectionEvidence[] = Array.isArray(evidenceData)
+    ? evidenceData
+    : evidenceData?.items ?? []
 
   function resetForm() {
     setEvidenceType('OTHER')
@@ -109,44 +82,6 @@ export function QualityInspectionEvidencePanel({
     setTags('')
     setIsSensitive(false)
     setFileId('')
-    setUploadSession(null)
-    setUploadingFile(false)
-  }
-
-  function handleCreateUploadSession() {
-    setError(null)
-    void createSessionMutation.mutate({
-      evidence_type: evidenceType,
-      control_id: controlId || undefined,
-    })
-  }
-
-  async function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (!file || !uploadSession) return
-
-    setUploadingFile(true)
-    setError(null)
-
-    try {
-      const response = await fetch(uploadSession.url, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type,
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error('Error al subir el archivo')
-      }
-
-      setFileId(uploadSession.uploadSessionId)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al subir archivo')
-    } finally {
-      setUploadingFile(false)
-    }
   }
 
   function handleLinkEvidence() {
@@ -164,10 +99,6 @@ export function QualityInspectionEvidencePanel({
     }
 
     void linkEvidenceMutation.mutate(payload as Parameters<typeof qualityInspectionEvidenceApi.createLink>[1])
-  }
-
-  function handleArchive(evidenceId: string) {
-    void archiveMutation.mutate(evidenceId)
   }
 
   return (
@@ -192,17 +123,6 @@ export function QualityInspectionEvidencePanel({
                         <StatusBadge value={ev.evidence_type.toLowerCase().replace(/_/g, ' ')} />
                         <span className="font-medium">{ev.file?.filename ?? '—'}</span>
                       </div>
-                      {canUpload && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="small"
-                          onClick={() => handleArchive(ev.evidence_id)}
-                          disabled={archiveMutation.isPending}
-                        >
-                          Archivar
-                        </Button>
-                      )}
                     </div>
                     <div className="text-[11px] text-slate-500 space-y-0.5">
                       {ev.classification && (
@@ -257,7 +177,10 @@ export function QualityInspectionEvidencePanel({
 
           {canUpload && (
             <div className="space-y-3 border-t border-slate-200 pt-3">
-              <h5 className="text-[11px] font-semibold text-slate-600">Subir nueva evidencia</h5>
+              <h5 className="text-[11px] font-semibold text-slate-600">Vincular evidencia existente</h5>
+              <Alert variant="info">
+                El backend de F045 no crea sesiones de carga aquí. Ingresa el ID de un archivo ya registrado y se vinculará mediante el endpoint contractual de evidencia.
+              </Alert>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -323,59 +246,24 @@ export function QualityInspectionEvidencePanel({
                 />
                 Marcar como sensible
               </label>
-
-              {!uploadSession ? (
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="small"
-                  onClick={handleCreateUploadSession}
-                  isLoading={createSessionMutation.isPending}
-                  disabled={createSessionMutation.isPending}
-                >
-                  Crear sesión de carga
-                </Button>
-              ) : (
-                <div className="space-y-2">
-                  <div className="rounded bg-emerald-50 border border-emerald-200 p-2 text-[11px] text-emerald-700">
-                    Sesión de carga creada. Selecciona el archivo a subir.
-                    <span className="block font-mono text-[10px] mt-1 text-emerald-600">
-                      ID: {uploadSession.uploadSessionId}
-                    </span>
-                  </div>
-
-                  <div>
-                    <label className="field__label text-xs" htmlFor="ev-file">Archivo</label>
-                    <input
-                      id="ev-file"
-                      type="file"
-                      className="field__input text-xs"
-                      onChange={handleFileSelect}
-                      disabled={uploadingFile}
-                    />
-                    {uploadingFile && (
-                      <span className="text-[11px] text-slate-500 mt-1">Subiendo archivo…</span>
-                    )}
-                  </div>
-
-                  {fileId && (
-                    <div className="rounded bg-blue-50 border border-blue-200 p-2 text-[11px] text-blue-700">
-                      Archivo subido correctamente. Procesamiento y antimalware en curso.
-                    </div>
-                  )}
-
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="small"
-                    onClick={handleLinkEvidence}
-                    isLoading={linkEvidenceMutation.isPending}
-                    disabled={!fileId || linkEvidenceMutation.isPending}
-                  >
-                    Vincular evidencia
-                  </Button>
-                </div>
-              )}
+              <Input
+                id="ev-file-id"
+                label="ID del archivo existente"
+                value={fileId}
+                onChange={(event) => setFileId(event.target.value)}
+                placeholder="UUID del archivo registrado"
+                required
+              />
+              <Button
+                type="button"
+                variant="primary"
+                size="small"
+                onClick={handleLinkEvidence}
+                isLoading={linkEvidenceMutation.isPending}
+                disabled={!fileId.trim() || linkEvidenceMutation.isPending}
+              >
+                Vincular evidencia
+              </Button>
             </div>
           )}
         </>

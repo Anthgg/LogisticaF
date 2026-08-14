@@ -1,4 +1,5 @@
 import { apiRequest, getCsrfToken } from '../../../api/api-client'
+import { contractGap } from '../../../api/contract-availability'
 import type {
   InventoryMovement,
   InventoryMovementSummary,
@@ -86,18 +87,25 @@ export const inventoryMovementsApi = {
     return apiRequest({ path: `${BASE}/${movementId}/compensations`, method: 'GET' })
   },
 
-  async getDashboardSummary(warehouseId?: string): Promise<InventoryLedgerDashboardSummary> {
-    const qs = warehouseId ? `?warehouse_id=${warehouseId}` : ''
-    return apiRequest({ path: `${BASE}/dashboard${qs}`, method: 'GET' })
+  /**
+   * No hay tablero de movimientos en el contrato. Un resumen en cero se leería
+   * como "no hubo movimientos", que no es lo mismo que "no hay tablero".
+   */
+  async getDashboardSummary(_warehouseId?: string): Promise<InventoryLedgerDashboardSummary> {
+    throw contractGap('El tablero del libro de inventario')
   },
 
-  async requestStepUp(action: string, payload: Record<string, unknown>): Promise<unknown> {
+  /**
+   * El step-up no cuelga de movimientos: es un desafío de seguridad
+   * transversal (`/security/step-up/challenges`) sobre un permiso concreto.
+   */
+  async requestStepUp(permissionCode: string, payload: Record<string, unknown>): Promise<unknown> {
     const csrf = await withCsrf()
     return apiRequest({
-      path: `${BASE}/step-up`,
+      path: '/logistics/security/step-up/challenges',
       method: 'POST',
       headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: { action, ...payload },
+      body: { permission_code: permissionCode, ...payload },
     })
   },
 }

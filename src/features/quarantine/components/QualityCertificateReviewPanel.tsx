@@ -38,7 +38,7 @@ export function QualityCertificateReviewPanel({
 
   const { data: evidenceData, isLoading, refetch } = useQuery<{ items: QualityCertificateReview[] }>(
     ['certificate-reviews', inspectionId],
-    `/logistics/quality-inspection-evidence/evidence?inspection_id=${inspectionId}&evidence_type=CERTIFICATE`,
+    `/logistics/quality-inspections/${inspectionId}/evidence?evidence_type=CERTIFICATE`,
     undefined,
     { enabled: Boolean(inspectionId) },
   )

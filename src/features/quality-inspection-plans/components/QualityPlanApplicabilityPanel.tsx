@@ -19,7 +19,7 @@ export function QualityPlanApplicabilityPanel({ productId }: QualityPlanApplicab
 
   const previewQuery = useQuery<QualityPlanPreview>(
     ['quality-plan-preview', productId],
-    `/logistics/quality-inspection-plans/preview`,
+    `/logistics/quality-inspection-plans/resolve`,
     { product_id: productId },
     { enabled: !!productId },
   )

@@ -23,21 +23,21 @@ const RESULT_VARIANTS: Record<string, string> = {
 export function QualityInspectionResultPanel({ inspection }: Props) {
   const controlsQuery = useQuery<{ items: QualityInspectionControl[] }>(
     ['inspection-controls', inspection.inspection_id],
-    `/logistics/quality-inspections/inspections/${inspection.inspection_id}/controls`,
+    `/logistics/quality-inspections/${inspection.inspection_id}/controls`,
     {},
     { enabled: !!inspection.inspection_id },
   )
 
   const evidenceQuery = useQuery<{ items: QualityInspectionEvidence[] }>(
     ['inspection-evidence', inspection.inspection_id],
-    `/logistics/quality-inspection-evidence/evidence?inspection_id=${inspection.inspection_id}`,
+    `/logistics/quality-inspections/${inspection.inspection_id}/evidence`,
     {},
     { enabled: !!inspection.inspection_id },
   )
 
   const integrityQuery = useQuery<QualityQuarantineIntegrity>(
     ['inspection-integrity', inspection.inspection_id],
-    `/logistics/quality-inspections/inspections/${inspection.inspection_id}/integrity`,
+    `/logistics/quality-inspections/${inspection.inspection_id}/integrity`,
     {},
     { enabled: !!inspection.inspection_id },
   )

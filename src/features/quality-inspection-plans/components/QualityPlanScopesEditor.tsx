@@ -68,7 +68,7 @@ export function QualityPlanScopesEditor({
     async (input) => {
       const csrf = await getCsrfToken()
       return apiRequest<{ scope_id: string }>({
-        path: `/logistics/quality/versions/${versionId}/scopes`,
+        path: `/logistics/quality-inspection-plans/versions/${versionId}/scopes`,
         method: 'POST',
         body: input,
         headers: { 'X-CSRF-Token': csrf },
@@ -88,7 +88,7 @@ export function QualityPlanScopesEditor({
     async (input) => {
       const csrf = await getCsrfToken()
       await apiRequest({
-        path: `/logistics/quality/scopes/${input.scopeId}`,
+        path: `/logistics/quality-inspection-plans/scopes/${input.scopeId}`,
         method: 'DELETE',
         headers: { 'X-CSRF-Token': csrf },
       })

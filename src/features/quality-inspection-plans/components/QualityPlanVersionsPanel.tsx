@@ -59,7 +59,7 @@ export function QualityPlanVersionsPanel({
     async (input) => {
       const csrf = await getCsrfToken()
       return apiRequest<{ version_id: string }>({
-        path: `/logistics/quality/versions/${input.versionId}/clone`,
+        path: `/logistics/quality-inspection-plans/versions/${input.versionId}/clone`,
         method: 'POST',
         body: {},
         headers: { 'X-CSRF-Token': csrf },
@@ -79,7 +79,7 @@ export function QualityPlanVersionsPanel({
     async (input) => {
       const csrf = await getCsrfToken()
       await apiRequest({
-        path: `/logistics/quality/versions/${input.versionId}/validate`,
+        path: `/logistics/quality-inspection-plans/versions/${input.versionId}/validate`,
         method: 'POST',
         body: {},
         headers: { 'X-CSRF-Token': csrf },
@@ -92,7 +92,7 @@ export function QualityPlanVersionsPanel({
     async (input) => {
       const csrf = await getCsrfToken()
       await apiRequest({
-        path: `/logistics/quality/versions/${input.versionId}/activate`,
+        path: `/logistics/quality-inspection-plans/versions/${input.versionId}/activate`,
         method: 'POST',
         body: { confirmation: true },
         headers: { 'X-CSRF-Token': csrf },
@@ -105,7 +105,7 @@ export function QualityPlanVersionsPanel({
     async (input) => {
       const csrf = await getCsrfToken()
       await apiRequest({
-        path: `/logistics/quality/versions/${input.versionId}/retire`,
+        path: `/logistics/quality-inspection-plans/versions/${input.versionId}/retire`,
         method: 'POST',
         body: { reason: input.reason },
         headers: { 'X-CSRF-Token': csrf },

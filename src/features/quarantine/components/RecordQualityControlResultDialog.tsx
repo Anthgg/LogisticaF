@@ -40,7 +40,7 @@ export function RecordQualityControlResultDialog({
     isLoading: isLoadingControl,
   } = useQuery<QualityInspectionControl>(
     ['control', controlId],
-    `/logistics/quality-inspections/controls/${controlId}`,
+    `/logistics/quality-inspection-controls/${controlId}`,
     undefined,
     { enabled: isOpen },
   )

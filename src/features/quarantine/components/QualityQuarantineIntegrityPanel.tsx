@@ -46,7 +46,7 @@ export function QualityQuarantineIntegrityPanel({
     refetch,
   } = useQuery<QualityQuarantineIntegrity>(
     ['quarantine-integrity', caseId],
-    `/logistics/quality-quarantine/cases/${caseId}/integrity`,
+    `/logistics/quality-quarantine-cases/${caseId}/integrity`,
     undefined,
     { enabled: canViewIntegrity },
   )

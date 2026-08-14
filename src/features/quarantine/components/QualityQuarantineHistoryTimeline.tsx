@@ -173,7 +173,7 @@ export function QualityQuarantineHistoryTimeline({
     error,
   } = useQuery<QualityQuarantineHistoryEvent[]>(
     ['quarantine-history', caseId],
-    `/logistics/quality-quarantine/cases/${caseId}/history`,
+    `/logistics/quality-quarantine-cases/${caseId}/history`,
     undefined,
     { enabled: canViewHistory },
   )

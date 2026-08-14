@@ -18,7 +18,7 @@ export function QualityPlanVersionDetailPage() {
 
   const { data: version, isLoading } = useQuery<QualityInspectionPlanVersion>(
     ['quality-plan-version', versionId],
-    `/logistics/quality-plan-versions/${versionId}`,
+    `/logistics/quality-inspection-plans/versions/${versionId}`,
     undefined,
     { enabled: !!versionId },
   )

@@ -46,7 +46,7 @@ export function QualityInspectionEvidencePanel({
 
   const { data: evidenceData, isLoading, refetch } = useQuery<{ items: QualityInspectionEvidence[] }>(
     ['evidence', inspectionId],
-    `/logistics/quality-inspection-evidence/evidence?inspection_id=${inspectionId}`,
+    `/logistics/quality-inspections/${inspectionId}/evidence`,
     undefined,
     { enabled: Boolean(inspectionId) },
   )

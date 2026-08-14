@@ -115,7 +115,7 @@ export function QualityInspectionValidationPanel({
     error: inspectionError,
   } = useQuery<QualityInspection>(
     ['inspection', inspectionId],
-    `/logistics/quality-inspections/inspections/${inspectionId}`,
+    `/logistics/quality-inspections/${inspectionId}`,
   )
 
   const {
@@ -125,7 +125,7 @@ export function QualityInspectionValidationPanel({
     error: controlsError,
   } = useQuery<QualityInspectionControl[]>(
     ['inspection-controls', inspectionId],
-    `/logistics/quality-inspections/inspections/${inspectionId}/controls`,
+    `/logistics/quality-inspections/${inspectionId}/controls`,
   )
 
   if (!canValidate) {

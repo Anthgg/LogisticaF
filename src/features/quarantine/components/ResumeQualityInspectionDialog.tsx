@@ -40,7 +40,7 @@ export function ResumeQualityInspectionDialog({
     isLoading,
   } = useQuery<QualityInspection>(
     ['inspection', inspectionId],
-    `/logistics/quality-inspections/inspections/${inspectionId}`,
+    `/logistics/quality-inspections/${inspectionId}`,
     undefined,
     { enabled: isOpen },
   )

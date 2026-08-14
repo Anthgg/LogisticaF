@@ -32,14 +32,14 @@ export function ConfirmQuarantinePlacementDialog({
 
   const { data: caseData, isLoading: isLoadingCase } = useQuery<QualityQuarantineCase>(
     ['quarantine-case', caseId],
-    `/logistics/quality-quarantine/cases/${caseId}`,
+    `/logistics/quality-quarantine-cases/${caseId}`,
     undefined,
     { enabled: isOpen && Boolean(caseId) },
   )
 
   const { data: placements, isLoading: isLoadingPlacements } = useQuery<QuarantinePlacement[]>(
     ['quarantine-placements', caseId],
-    `/logistics/quality-quarantine/cases/${caseId}/placements`,
+    `/logistics/quality-quarantine-cases/${caseId}/placements`,
     undefined,
     { enabled: isOpen && Boolean(caseId) },
   )

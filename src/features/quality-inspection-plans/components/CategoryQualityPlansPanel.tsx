@@ -47,8 +47,8 @@ const CONFLICT_LEVEL_COLORS: Record<string, string> = {
 export function CategoryQualityPlansPanel({ categoryId }: CategoryQualityPlansPanelProps) {
   const query = useQuery<CategoryQualityPlansData>(
     ['category-quality-plans', categoryId],
-    `/logistics/quality-inspection-plans/category-plans`,
-    { category_id: categoryId },
+    `/logistics/quality-inspection-plans/resolve`,
+    { product_category_id: categoryId },
     { enabled: !!categoryId },
   )
 

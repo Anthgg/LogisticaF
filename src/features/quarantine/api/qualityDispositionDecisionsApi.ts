@@ -22,7 +22,7 @@ export const qualityDispositionDecisionsApi = {
   async create(caseId: string, data: CreateQualityDispositionDecisionRequest): Promise<QualityDispositionDecision> {
     const csrf = await withCsrf()
     return apiRequest({
-      path: `/logistics/quality-quarantine-cases/${caseId}/disposition-decisions`,
+      path: `/logistics/quality-quarantine-cases/${caseId}/decisions`,
       method: 'POST',
       headers: { ...csrf, 'Idempotency-Key': generateKey() },
       body: data,

@@ -77,7 +77,7 @@ export function QualityControlsEditor({
     async (input) => {
       const csrf = await getCsrfToken()
       return apiRequest<{ control_id: string }>({
-        path: `/logistics/quality/versions/${versionId}/controls`,
+        path: `/logistics/quality-inspection-plans/versions/${versionId}/controls`,
         method: 'POST',
         body: input,
         headers: { 'X-CSRF-Token': csrf },
@@ -97,7 +97,7 @@ export function QualityControlsEditor({
     async (input) => {
       const csrf = await getCsrfToken()
       await apiRequest({
-        path: `/logistics/quality/controls/${input.controlId}`,
+        path: `/logistics/quality-inspection-plans/controls/${input.controlId}`,
         method: 'PATCH',
         body: input.data,
         headers: { 'X-CSRF-Token': csrf },
@@ -110,7 +110,7 @@ export function QualityControlsEditor({
     async (input) => {
       const csrf = await getCsrfToken()
       await apiRequest({
-        path: `/logistics/quality/controls/${input.controlId}/deactivate`,
+        path: `/logistics/quality-inspection-plans/controls/${input.controlId}/deactivate`,
         method: 'POST',
         headers: { 'X-CSRF-Token': csrf },
       })
@@ -122,7 +122,7 @@ export function QualityControlsEditor({
     async (input) => {
       const csrf = await getCsrfToken()
       return apiRequest<{ control_id: string }>({
-        path: `/logistics/quality/controls/${input.controlId}/clone`,
+        path: `/logistics/quality-inspection-plans/controls/${input.controlId}/clone`,
         method: 'POST',
         headers: { 'X-CSRF-Token': csrf },
       })
@@ -134,7 +134,7 @@ export function QualityControlsEditor({
     async (input) => {
       const csrf = await getCsrfToken()
       await apiRequest({
-        path: `/logistics/quality/versions/${versionId}/controls/reorder`,
+        path: `/logistics/quality-inspection-plans/versions/${versionId}/controls/reorder`,
         method: 'PUT',
         body: input,
         headers: { 'X-CSRF-Token': csrf },

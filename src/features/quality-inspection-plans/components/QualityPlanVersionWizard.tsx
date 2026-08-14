@@ -77,7 +77,7 @@ export function QualityPlanVersionWizard({
   const versionQueryKey = useMemo(() => ['quality-plan-version', versionId], [versionId])
   const { data: versionData, isLoading: versionLoading } = useQuery<QualityInspectionPlanVersion>(
     versionQueryKey,
-    `/logistics/quality-plan-versions/${versionId}`,
+    `/logistics/quality-inspection-plans/versions/${versionId}`,
     {},
     { enabled: Boolean(versionId) },
   )
@@ -125,7 +125,7 @@ export function QualityPlanVersionWizard({
   const validationQueryKey = useMemo(() => ['quality-plan-validation', versionId], [versionId])
   const { data: validationData, isLoading: validationLoading } = useQuery<QualityPlanValidation>(
     validationQueryKey,
-    `/logistics/quality-plan-versions/${versionId}/validate`,
+    `/logistics/quality-inspection-plans/versions/${versionId}/validate`,
     {},
     { enabled: Boolean(versionId) && currentStep.key === 'validation' },
   )
@@ -167,7 +167,7 @@ export function QualityPlanVersionWizard({
       if (!versionId) throw new Error('No version ID')
       const csrf = await getCsrfToken()
       return apiRequest<QualityInspectionPlanVersion>({
-        path: `/logistics/quality-plan-versions/${versionId}`,
+        path: `/logistics/quality-inspection-plans/versions/${versionId}`,
         method: 'PATCH',
         headers: { 'X-CSRF-Token': csrf, 'Idempotency-Key': crypto.randomUUID() },
         body: {
@@ -197,7 +197,7 @@ export function QualityPlanVersionWizard({
       if (!versionId) throw new Error('No version ID')
       const csrf = await getCsrfToken()
       return apiRequest<QualityPlanValidation>({
-        path: `/logistics/quality-plan-versions/${versionId}/validate`,
+        path: `/logistics/quality-inspection-plans/versions/${versionId}/validate`,
         method: 'POST',
         headers: { 'X-CSRF-Token': csrf },
         body: {},

@@ -77,6 +77,21 @@ function omitUndefined<T extends Record<string, unknown>>(input: T): Partial<T> 
   return out
 }
 
+/**
+ * Como omitUndefined pero descartando tambien null y cadena vacia.
+ *
+ * Los filtros opcionales del contrato son UUID: mandar '' obliga al backend a
+ * parsearlo y falla. Ausente y "sin valor" deben viajar igual: omitidos.
+ */
+function omitEmptyParams<T extends Record<string, unknown>>(input: T): Partial<T> {
+  const out: Partial<T> = {}
+  for (const [k, v] of Object.entries(input)) {
+    if (v === undefined || v === null || v === '') continue
+    ;(out as Record<string, unknown>)[k] = v
+  }
+  return out
+}
+
 export function useInboundDockQueue(
   query: InboundDockQueueListQuery,
   options: { refetchIntervalMs?: number | null; enabled?: boolean } = {},
@@ -324,15 +339,12 @@ export function useInboundDockAssignments(
   },
   options: { refetchIntervalMs?: number | null; enabled?: boolean } = {},
 ) {
-  const stable = useMemo(() => omitUndefined(query as Record<string, unknown>), [query])
-  // Estas colecciones se consultan por almacen. Sin almacen resuelto no se
-  // dispara la peticion ni el polling: evita `?warehouse_id=` y ruido de red.
-  const hasWarehouse = Boolean(stable.warehouse_id)
+  const stable = useMemo(() => omitEmptyParams(query as Record<string, unknown>), [query])
   return useQuery<PaginatedResponse<InboundDockAssignment>>(
     ['dock-assignments', stable],
     INBOUND_DOCK_ASSIGNMENTS_BASE,
     stable as Record<string, unknown>,
-    { enabled: (options.enabled ?? true) && hasWarehouse, refetchIntervalMs: options.refetchIntervalMs ?? FIVE_SECONDS },
+    { enabled: options.enabled ?? true, refetchIntervalMs: options.refetchIntervalMs ?? FIVE_SECONDS },
   )
 }
 
@@ -345,15 +357,12 @@ export function useUnloadingOperationsList(
   },
   options: { refetchIntervalMs?: number | null; enabled?: boolean } = {},
 ) {
-  const stable = useMemo(() => omitUndefined(query as Record<string, unknown>), [query])
-  // Estas colecciones se consultan por almacen. Sin almacen resuelto no se
-  // dispara la peticion ni el polling: evita `?warehouse_id=` y ruido de red.
-  const hasWarehouse = Boolean(stable.warehouse_id)
+  const stable = useMemo(() => omitEmptyParams(query as Record<string, unknown>), [query])
   return useQuery<PaginatedResponse<UnloadingOperation>>(
     ['unloading-ops', stable],
     UNLOADING_OPERATIONS_BASE,
     stable as Record<string, unknown>,
-    { enabled: (options.enabled ?? true) && hasWarehouse, refetchIntervalMs: options.refetchIntervalMs ?? FIVE_SECONDS },
+    { enabled: options.enabled ?? true, refetchIntervalMs: options.refetchIntervalMs ?? FIVE_SECONDS },
   )
 }
 

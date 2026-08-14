@@ -43,7 +43,7 @@ const QualityCertificateRequirementsEditor: React.FC<QualityCertificateRequireme
     async (input) => {
       const csrf = await getCsrfToken();
       return apiRequest({
-        path: '/api/quality-inspection-plans/certificate-requirements/',
+        path: '/logistics/quality-inspection-plans/certificate-requirements',
         method: 'POST',
         body: input,
         headers: { 'X-CSRF-Token': csrf }
@@ -62,7 +62,7 @@ const QualityCertificateRequirementsEditor: React.FC<QualityCertificateRequireme
     async (input) => {
       const csrf = await getCsrfToken();
       return apiRequest({
-        path: `/api/quality-inspection-plans/certificate-requirements/${editingRequirement?.requirement_id}/`,
+        path: `/logistics/quality-inspection-plans/certificate-requirements/${editingRequirement?.requirement_id}`,
         method: 'PUT',
         body: input,
         headers: { 'X-CSRF-Token': csrf }
@@ -81,7 +81,7 @@ const QualityCertificateRequirementsEditor: React.FC<QualityCertificateRequireme
     async (input) => {
       const csrf = await getCsrfToken();
       return apiRequest({
-        path: `/api/quality-inspection-plans/certificate-requirements/${input.requirement_id}/`,
+        path: `/logistics/quality-inspection-plans/certificate-requirements/${input.requirement_id}`,
         method: 'DELETE',
         headers: { 'X-CSRF-Token': csrf }
       });

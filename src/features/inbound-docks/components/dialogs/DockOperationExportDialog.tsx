@@ -61,7 +61,7 @@ export function DockOperationExportDialog({
   )
   const job = useQuery<DockOperationExportJob>(
     ['dock-export-job', jobId],
-    jobId ? `/logistics/inbound/dock-assignments/export/${jobId}` : '',
+    '',  // sin contrato backend: no existe endpoint de exportacion de asignaciones
     undefined,
     { enabled: Boolean(jobId), refetchIntervalMs: jobId ? 3_000 : null },
   )

@@ -28,6 +28,7 @@ import { warehouseDocksApi } from '../api/warehouseDocksApi'
 import { InboundDockDailyCalendar } from '../components/WarehouseDockSchedules'
 import type { WarehouseDock } from '../types/inbound-docks'
 import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
+import { UNLOADING_OPERATIONS_BASE } from '../hooks/useInboundDocksQueries'
 
 export function WarehouseDockDetailPage() {
   const { dockId } = useParams<{ dockId: string }>()
@@ -44,7 +45,7 @@ export function WarehouseDockDetailPage() {
   )
   const operationsQuery = useQuery<{ items: Array<{ id: string; dock_id: string; cpv_code: string | null; vehicle: { plate: string | null } | null; status: string; started_at_server: string | null; started_at: string | null; created_at: string; server_time: string; warehouse_id: string; check_in_id: string; dock_code: string; supplier: { id: string; name: string; code: string | null } | null; carrier: { id: string; name: string; code: string | null } | null; alerts: string[] }> }>(
     ['dock-detail-operations', dockId],
-    dockId ? `/logistics/inbound/unloading?dock_id=${dockId}` : '',
+    dockId ? `${UNLOADING_OPERATIONS_BASE}?dock_id=${dockId}` : '',
     undefined,
     { enabled: Boolean(dockId), refetchIntervalMs: 10_000 },
   )

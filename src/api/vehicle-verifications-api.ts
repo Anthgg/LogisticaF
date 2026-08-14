@@ -100,10 +100,10 @@ export const vehicleVerificationsApi = {
   },
 
   async getStats(): Promise<VehicleVerificationStats> {
-    try {
-      // NOT_IN_CONTRACT_0.9.3: GET /logistics/vehicle-verifications/stats
-      return await apiRequest({ path: '/logistics/vehicle-verifications/stats' })
-    } catch {
+    // Sin contrato: el backend no publica /stats. Pedirlo hace que FastAPI
+    // interprete "stats" como {verification_id} y responda 422. Se devuelve el
+    // agregado vacio en vez de ejecutar una peticion invalida.
+    {
       return {
         total_verifications: 0,
         fresh_count: 0,

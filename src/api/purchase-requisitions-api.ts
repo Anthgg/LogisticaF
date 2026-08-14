@@ -41,10 +41,9 @@ export const purchaseRequisitionsApi = {
   },
 
   async getStats(): Promise<PurchaseRequisitionStats> {
-    try {
-      // NOT_IN_CONTRACT_0.9.3: GET /logistics/procurement/requisitions/stats
-      return await apiRequest({ path: `${BASE}/stats` })
-    } catch {
+    // Sin contrato: el backend no publica /stats. "stats" caeria en
+    // {requisition_id} y devolveria 422 uuid_parsing.
+    {
       return {
         total_requisitions: 0,
         draft_count: 0,

@@ -33,6 +33,16 @@ import type {
   UnloadingPause,
 } from '../types/inbound-docks'
 
+/**
+ * Bases canonicas del contrato de muelles de entrada.
+ *
+ * El backend publica estos recursos en la raiz de `/logistics`, NO bajo
+ * `/logistics/inbound/...`. Ese prefijo pertenece a las rutas de la UI, que son
+ * otra cosa. Todos los clientes deben derivar de aqui.
+ */
+export const INBOUND_DOCK_ASSIGNMENTS_BASE = '/logistics/inbound-dock-assignments'
+export const UNLOADING_OPERATIONS_BASE = '/logistics/unloading-operations'
+
 const FIVE_SECONDS = 5_000
 const TEN_SECONDS = 10_000
 const THIRTY_SECONDS = 30_000
@@ -98,7 +108,8 @@ export function useInboundDockQueueSummary(warehouseId: string | null | undefine
   return useQuery<InboundDockQueueSummary>(
     ['dock-queue-summary', warehouseId],
     '/logistics/inbound-dock-queue/summary',
-    { warehouse_id: warehouseId ?? '' },
+    // Nunca se envia cadena vacia a un parametro UUID: o va el id, o se omite.
+    { warehouse_id: warehouseId || undefined },
     { enabled: Boolean(warehouseId), refetchIntervalMs: TEN_SECONDS },
   )
 }
@@ -160,7 +171,7 @@ export function useWarehouseDockOperatingWindows(dockId: string | null | undefin
 export function useInboundDockAssignment(assignmentId: string | null | undefined) {
   return useQuery<InboundDockAssignment>(
     ['dock-assignment', assignmentId],
-    assignmentId ? `/logistics/inbound/dock-assignments/${assignmentId}` : '',
+    assignmentId ? `${INBOUND_DOCK_ASSIGNMENTS_BASE}/${assignmentId}` : '',
     undefined,
     { enabled: Boolean(assignmentId), refetchIntervalMs: FIVE_SECONDS },
   )
@@ -178,7 +189,7 @@ export function useDockAssignmentPlan(planId: string | null | undefined) {
 export function useDockAssignmentMetrics(assignmentId: string | null | undefined) {
   return useQuery<DockAssignmentMetrics>(
     ['dock-assignment-metrics', assignmentId],
-    assignmentId ? `/logistics/inbound/dock-assignments/${assignmentId}/metrics` : '',
+    assignmentId ? `${INBOUND_DOCK_ASSIGNMENTS_BASE}/${assignmentId}/metrics` : '',
     undefined,
     { enabled: Boolean(assignmentId), refetchIntervalMs: THIRTY_SECONDS },
   )
@@ -187,25 +198,25 @@ export function useDockAssignmentMetrics(assignmentId: string | null | undefined
 export function useDockOperationalTimes(assignmentId: string | null | undefined) {
   return useQuery<DockOperationalTimes>(
     ['dock-assignment-times', assignmentId],
-    assignmentId ? `/logistics/inbound/dock-assignments/${assignmentId}/operational-times` : '',
+    '',  // sin contrato backend
     undefined,
-    { enabled: Boolean(assignmentId), refetchIntervalMs: THIRTY_SECONDS },
+    { enabled: false },
   )
 }
 
 export function useDockAssignmentIntegrity(assignmentId: string | null | undefined) {
   return useQuery<DockOperationIntegrity>(
     ['dock-assignment-integrity', assignmentId],
-    assignmentId ? `/logistics/inbound/dock-assignments/${assignmentId}/integrity` : '',
+    '',  // sin contrato backend
     undefined,
-    { enabled: Boolean(assignmentId), refetchIntervalMs: THIRTY_SECONDS },
+    { enabled: false },
   )
 }
 
 export function useDockAssignmentHistory(assignmentId: string | null | undefined) {
   return useQuery<DockOperationHistoryEvent[]>(
     ['dock-assignment-history', assignmentId],
-    assignmentId ? `/logistics/inbound/dock-assignments/${assignmentId}/history` : '',
+    assignmentId ? `${INBOUND_DOCK_ASSIGNMENTS_BASE}/${assignmentId}/history` : '',
     undefined,
     { enabled: Boolean(assignmentId), refetchIntervalMs: THIRTY_SECONDS },
   )
@@ -214,16 +225,16 @@ export function useDockAssignmentHistory(assignmentId: string | null | undefined
 export function useReceivingPreparationByAssignment(assignmentId: string | null | undefined) {
   return useQuery<ReceivingScanPreparation>(
     ['dock-assignment-receiving-prep', assignmentId],
-    assignmentId ? `/logistics/inbound/dock-assignments/${assignmentId}/receiving-preparation` : '',
+    '',  // sin contrato backend
     undefined,
-    { enabled: Boolean(assignmentId), refetchIntervalMs: THIRTY_SECONDS },
+    { enabled: false },
   )
 }
 
 export function useUnloadingOperation(operationId: string | null | undefined) {
   return useQuery<UnloadingOperation>(
     ['unloading-op', operationId],
-    operationId ? `/logistics/inbound/unloading/${operationId}` : '',
+    operationId ? `${UNLOADING_OPERATIONS_BASE}/${operationId}` : '',
     undefined,
     { enabled: Boolean(operationId), refetchIntervalMs: FIVE_SECONDS },
   )
@@ -232,7 +243,7 @@ export function useUnloadingOperation(operationId: string | null | undefined) {
 export function useUnloadingReadinessChecks(operationId: string | null | undefined) {
   return useQuery<UnloadingReadinessCheck[]>(
     ['unloading-readiness', operationId],
-    operationId ? `/logistics/inbound/unloading/${operationId}/readiness-checks` : '',
+    operationId ? `${UNLOADING_OPERATIONS_BASE}/${operationId}/readiness-checks` : '',
     undefined,
     { enabled: Boolean(operationId), refetchIntervalMs: FIVE_SECONDS },
   )
@@ -241,7 +252,7 @@ export function useUnloadingReadinessChecks(operationId: string | null | undefin
 export function useUnloadingCompletionChecks(operationId: string | null | undefined) {
   return useQuery<UnloadingCompletionCheck[]>(
     ['unloading-completion', operationId],
-    operationId ? `/logistics/inbound/unloading/${operationId}/completion-checks` : '',
+    operationId ? `${UNLOADING_OPERATIONS_BASE}/${operationId}/completion-checks` : '',
     undefined,
     { enabled: Boolean(operationId), refetchIntervalMs: FIVE_SECONDS },
   )
@@ -250,16 +261,16 @@ export function useUnloadingCompletionChecks(operationId: string | null | undefi
 export function useUnloadingExpectedLoad(operationId: string | null | undefined) {
   return useQuery<UnloadingExpectedLoad>(
     ['unloading-expected', operationId],
-    operationId ? `/logistics/inbound/unloading/${operationId}/expected-load` : '',
+    '',  // sin contrato backend
     undefined,
-    { enabled: Boolean(operationId), refetchIntervalMs: THIRTY_SECONDS },
+    { enabled: false },
   )
 }
 
 export function useUnloadingResponsibles(operationId: string | null | undefined) {
   return useQuery<UnloadingResponsibleAssignment[]>(
     ['unloading-responsibles', operationId],
-    operationId ? `/logistics/inbound/unloading/${operationId}/responsibles` : '',
+    operationId ? `${UNLOADING_OPERATIONS_BASE}/${operationId}/responsibles` : '',
     undefined,
     { enabled: Boolean(operationId), refetchIntervalMs: THIRTY_SECONDS },
   )
@@ -268,7 +279,7 @@ export function useUnloadingResponsibles(operationId: string | null | undefined)
 export function useUnloadingEquipment(operationId: string | null | undefined) {
   return useQuery<UnloadingEquipmentAssignment[]>(
     ['unloading-equipment', operationId],
-    operationId ? `/logistics/inbound/unloading/${operationId}/equipment` : '',
+    operationId ? `${UNLOADING_OPERATIONS_BASE}/${operationId}/equipment` : '',
     undefined,
     { enabled: Boolean(operationId), refetchIntervalMs: THIRTY_SECONDS },
   )
@@ -277,7 +288,7 @@ export function useUnloadingEquipment(operationId: string | null | undefined) {
 export function useUnloadingSealOpening(operationId: string | null | undefined) {
   return useQuery<UnloadingSealOpening | null>(
     ['unloading-seal', operationId],
-    operationId ? `/logistics/inbound/unloading/${operationId}/seal-opening` : '',
+    operationId ? `${UNLOADING_OPERATIONS_BASE}/${operationId}/seal-opening` : '',
     undefined,
     { enabled: Boolean(operationId), refetchIntervalMs: FIVE_SECONDS },
   )
@@ -286,7 +297,7 @@ export function useUnloadingSealOpening(operationId: string | null | undefined) 
 export function useUnloadingPauses(operationId: string | null | undefined) {
   return useQuery<UnloadingPause[]>(
     ['unloading-pauses', operationId],
-    operationId ? `/logistics/inbound/unloading/${operationId}/pauses` : '',
+    operationId ? `${UNLOADING_OPERATIONS_BASE}/${operationId}/pauses` : '',
     undefined,
     { enabled: Boolean(operationId), refetchIntervalMs: FIVE_SECONDS },
   )
@@ -295,7 +306,7 @@ export function useUnloadingPauses(operationId: string | null | undefined) {
 export function useReceivingPreparationByOperation(operationId: string | null | undefined) {
   return useQuery<ReceivingScanPreparation>(
     ['unloading-receiving-prep', operationId],
-    operationId ? `/logistics/inbound/unloading/${operationId}/receiving-preparation` : '',
+    operationId ? `${UNLOADING_OPERATIONS_BASE}/${operationId}/receiving-preparation` : '',
     undefined,
     { enabled: Boolean(operationId), refetchIntervalMs: THIRTY_SECONDS },
   )
@@ -314,11 +325,14 @@ export function useInboundDockAssignments(
   options: { refetchIntervalMs?: number | null; enabled?: boolean } = {},
 ) {
   const stable = useMemo(() => omitUndefined(query as Record<string, unknown>), [query])
+  // Estas colecciones se consultan por almacen. Sin almacen resuelto no se
+  // dispara la peticion ni el polling: evita `?warehouse_id=` y ruido de red.
+  const hasWarehouse = Boolean(stable.warehouse_id)
   return useQuery<PaginatedResponse<InboundDockAssignment>>(
     ['dock-assignments', stable],
-    '/logistics/inbound/dock-assignments',
+    INBOUND_DOCK_ASSIGNMENTS_BASE,
     stable as Record<string, unknown>,
-    { enabled: options.enabled ?? true, refetchIntervalMs: options.refetchIntervalMs ?? FIVE_SECONDS },
+    { enabled: (options.enabled ?? true) && hasWarehouse, refetchIntervalMs: options.refetchIntervalMs ?? FIVE_SECONDS },
   )
 }
 
@@ -332,11 +346,14 @@ export function useUnloadingOperationsList(
   options: { refetchIntervalMs?: number | null; enabled?: boolean } = {},
 ) {
   const stable = useMemo(() => omitUndefined(query as Record<string, unknown>), [query])
+  // Estas colecciones se consultan por almacen. Sin almacen resuelto no se
+  // dispara la peticion ni el polling: evita `?warehouse_id=` y ruido de red.
+  const hasWarehouse = Boolean(stable.warehouse_id)
   return useQuery<PaginatedResponse<UnloadingOperation>>(
     ['unloading-ops', stable],
-    '/logistics/inbound/unloading',
+    UNLOADING_OPERATIONS_BASE,
     stable as Record<string, unknown>,
-    { enabled: options.enabled ?? true, refetchIntervalMs: options.refetchIntervalMs ?? FIVE_SECONDS },
+    { enabled: (options.enabled ?? true) && hasWarehouse, refetchIntervalMs: options.refetchIntervalMs ?? FIVE_SECONDS },
   )
 }
 
@@ -345,14 +362,14 @@ export function useDockMetricsSummary(
   range?: { date_from?: string; date_to?: string },
 ) {
   const stable = useMemo(
-    () => omitUndefined({ warehouse_id: warehouseId ?? '', ...(range ?? {}) } as Record<string, unknown>),
+    () => omitUndefined({ warehouse_id: warehouseId || undefined, ...(range ?? {}) } as Record<string, unknown>),
     [warehouseId, range?.date_from, range?.date_to],
   )
   return useQuery<ReturnType<typeof dockOperationalMetricsApi.getSummary>>(
     ['dock-metrics-summary', stable],
-    '/logistics/inbound/dock-metrics/summary',
+    '',  // sin contrato backend: no existe un endpoint de resumen
     stable as Record<string, unknown>,
-    { enabled: Boolean(warehouseId), refetchIntervalMs: THIRTY_SECONDS },
+    { enabled: false },
   )
 }
 

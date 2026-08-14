@@ -113,9 +113,13 @@ export function QualityInspectionPlansPage() {
     query as Record<string, unknown>,
   )
 
+  // Sin contrato: el backend no publica /summary. "summary" caería en
+  // {plan_id} y devolvería 422 uuid_parsing. La consulta queda desactivada.
   const summary = useQuery<QualityInspectionPlanSummary>(
     ['quality-inspection-plans', 'summary'],
-    '/logistics/quality-inspection-plans/summary',
+    '',
+    undefined,
+    { enabled: false },
   )
 
   useEffect(() => {

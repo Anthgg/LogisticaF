@@ -77,7 +77,7 @@ export function InboundDockAssignmentDetailPage() {
   const times = useDockOperationalTimes(assignmentId ?? null)
   const integrity = useQuery<{ assignment_id: string; status: 'VALID' | 'FAILED' | 'PENDING'; failures: string[]; last_checked_at: string | null; partial_hash: string | null }>(
     ['dock-assignment-integrity', assignmentId],
-    assignmentId ? `/logistics/inbound/dock-assignments/${assignmentId}/integrity` : '',
+    '',  // sin contrato backend: integrity solo existe para unloading-operations
     undefined,
     { enabled: Boolean(assignmentId), refetchIntervalMs: 15_000 },
   )

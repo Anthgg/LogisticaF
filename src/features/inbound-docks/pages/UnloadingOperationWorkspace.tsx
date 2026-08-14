@@ -45,6 +45,7 @@ import {
 import { useQuery } from '../hooks/useQuery'
 import type { UnloadingOperation, UnloadingReadinessCheck, UnloadingCompletionCheck } from '../types/inbound-docks'
 import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
+import { UNLOADING_OPERATIONS_BASE } from '../hooks/useInboundDocksQueries'
 
 type Tab = 'ready' | 'responsibles' | 'seal' | 'unloading' | 'pauses' | 'completion' | 'times' | 'metrics' | 'prep' | 'history'
 
@@ -87,19 +88,19 @@ export function UnloadingOperationWorkspace() {
   const prep = useReceivingPreparationByOperation(operationId ?? null)
   const history = useQuery<Array<{ id: string; event_type: string; occurred_at: string; actor: { display_name: string } | null; previous_status: string | null; new_status: string | null; reason: string | null; result: string | null }>>(
     ['unloading-operation-history', operationId],
-    operationId ? `/logistics/inbound/unloading/${operationId}/history` : '',
+    operationId ? `${UNLOADING_OPERATIONS_BASE}/${operationId}/history` : '',
     undefined,
     { enabled: Boolean(operationId), refetchIntervalMs: 15_000 },
   )
   const metricsQuery = useQuery<{ assignment_id: string; wait_seconds: number | null; movement_seconds: number | null; dock_wait_seconds: number | null; unloading_gross_seconds: number | null; unloading_pause_seconds: number | null; unloading_net_seconds: number | null; release_delay_seconds: number | null; dock_occupancy_seconds: number | null; total_cycle_seconds: number | null; gate_control_seconds: number | null; data_quality: 'COMPLETE' | 'PARTIAL' | 'MISSING_EVENT' | 'INVALID_ORDER' | 'CORRECTED' | 'IMPORTED' | 'INTEGRITY_FAILED'; impact_on_kpi: string[] }>(
     ['unloading-operation-metrics', operationId],
-    operationId ? `/logistics/inbound/unloading/${operationId}/metrics` : '',
+    operationId ? `${UNLOADING_OPERATIONS_BASE}/${operationId}/metrics` : '',
     undefined,
     { enabled: Boolean(operationId), refetchIntervalMs: 15_000 },
   )
   const integrity = useQuery<{ assignment_id: string; status: 'VALID' | 'FAILED' | 'PENDING'; failures: string[]; last_checked_at: string | null; partial_hash: string | null }>(
     ['unloading-operation-integrity', operationId],
-    operationId ? `/logistics/inbound/unloading/${operationId}/integrity` : '',
+    operationId ? `${UNLOADING_OPERATIONS_BASE}/${operationId}/integrity` : '',
     undefined,
     { enabled: Boolean(operationId), refetchIntervalMs: 15_000 },
   )

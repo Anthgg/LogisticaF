@@ -87,7 +87,7 @@ const QualityControlConditionsBuilder: React.FC<QualityControlConditionsBuilderP
     async (input) => {
       const csrf = await getCsrfToken();
       return apiRequest({
-        path: `/api/quality-inspection-plans/conditions/${input.condition_id}/`,
+        path: `/logistics/quality-inspection-plans/conditions/${input.condition_id}`,
         method: 'DELETE',
         headers: { 'X-CSRF-Token': csrf }
       });

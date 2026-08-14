@@ -10,7 +10,10 @@ import type {
   PaginatedResponse,
 } from '../types/inbound-receiving'
 
-const BASE = '/logistics/inbound-receipts'
+// Las observaciones cuelgan de la LÍNEA, no del acta: el backend las publica
+// como `/inbound-receipt-lines/{line_id}/...`. El `receiptId` se conserva en la
+// firma porque es lo que identifica el acta en la UI.
+const LINES_BASE = '/logistics/inbound-receipt-lines'
 
 async function withCsrf(): Promise<Record<string, string>> {
   const token = await getCsrfToken()
@@ -25,14 +28,14 @@ function generateKey(): string {
 
 export const inboundObservationsApi = {
   // ── Lotes ───────────────────────────────────────────────────────────────────
-  async listLots(receiptId: string, lineId: string): Promise<InboundLotObservation[]> {
-    return apiRequest({ path: `${BASE}/${receiptId}/lines/${lineId}/lot-observations`, method: 'GET' })
+  async listLots(_receiptId: string, lineId: string): Promise<InboundLotObservation[]> {
+    return apiRequest({ path: `${LINES_BASE}/${lineId}/lot-observations`, method: 'GET' })
   },
 
-  async createLot(receiptId: string, data: CreateLotObservationRequest): Promise<InboundLotObservation> {
+  async createLot(_receiptId: string, data: CreateLotObservationRequest): Promise<InboundLotObservation> {
     const csrf = await withCsrf()
     return apiRequest({
-      path: `${BASE}/${receiptId}/lot-observations`,
+      path: `${LINES_BASE}/${data.line_id}/lot-observations`,
       method: 'POST',
       headers: { ...csrf, 'Idempotency-Key': generateKey() },
       body: data,
@@ -40,24 +43,24 @@ export const inboundObservationsApi = {
   },
 
   // ── Series ──────────────────────────────────────────────────────────────────
-  async listSerials(receiptId: string, lineId: string, page = 1, pageSize = 100): Promise<PaginatedResponse<InboundSerialObservation>> {
-    return apiRequest({ path: `${BASE}/${receiptId}/lines/${lineId}/serial-observations?page=${page}&page_size=${pageSize}`, method: 'GET' })
+  async listSerials(_receiptId: string, lineId: string, page = 1, pageSize = 100): Promise<PaginatedResponse<InboundSerialObservation>> {
+    return apiRequest({ path: `${LINES_BASE}/${lineId}/serial-observations?page=${page}&page_size=${pageSize}`, method: 'GET' })
   },
 
-  async createSerial(receiptId: string, data: CreateSerialObservationRequest): Promise<InboundSerialObservation> {
+  async createSerial(_receiptId: string, data: CreateSerialObservationRequest): Promise<InboundSerialObservation> {
     const csrf = await withCsrf()
     return apiRequest({
-      path: `${BASE}/${receiptId}/serial-observations`,
+      path: `${LINES_BASE}/${data.line_id}/serial-observations`,
       method: 'POST',
       headers: { ...csrf, 'Idempotency-Key': generateKey() },
       body: data,
     })
   },
 
-  async createSerialBatch(receiptId: string, data: CreateSerialBatchRequest): Promise<InboundSerialObservation[]> {
+  async createSerialBatch(_receiptId: string, data: CreateSerialBatchRequest): Promise<InboundSerialObservation[]> {
     const csrf = await withCsrf()
     return apiRequest({
-      path: `${BASE}/${receiptId}/serial-observations/batch`,
+      path: `${LINES_BASE}/${data.line_id}/serial-observations/batch`,
       method: 'POST',
       headers: { ...csrf, 'Idempotency-Key': generateKey() },
       body: data,
@@ -65,14 +68,14 @@ export const inboundObservationsApi = {
   },
 
   // ── Vencimientos ────────────────────────────────────────────────────────────
-  async listExpirations(receiptId: string, lineId: string): Promise<InboundExpirationObservation[]> {
-    return apiRequest({ path: `${BASE}/${receiptId}/lines/${lineId}/expiration-observations`, method: 'GET' })
+  async listExpirations(_receiptId: string, lineId: string): Promise<InboundExpirationObservation[]> {
+    return apiRequest({ path: `${LINES_BASE}/${lineId}/expiration-observations`, method: 'GET' })
   },
 
-  async createExpiration(receiptId: string, data: CreateExpirationObservationRequest): Promise<InboundExpirationObservation> {
+  async createExpiration(_receiptId: string, data: CreateExpirationObservationRequest): Promise<InboundExpirationObservation> {
     const csrf = await withCsrf()
     return apiRequest({
-      path: `${BASE}/${receiptId}/expiration-observations`,
+      path: `${LINES_BASE}/${data.line_id}/expiration-observations`,
       method: 'POST',
       headers: { ...csrf, 'Idempotency-Key': generateKey() },
       body: data,

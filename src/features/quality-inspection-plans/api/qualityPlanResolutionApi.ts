@@ -3,7 +3,6 @@ import type {
   QualityPlanConflict,
   QualityPlanValidation,
   QualityPlanIntegrity,
-  QualityPlanPreview,
   QualityPlanPreviewRequest,
   FutureQualityInspectionTemplate,
 } from '../types/quality-inspection-plans'
@@ -45,9 +44,9 @@ export const qualityPlanAnalyticsApi = {
     return apiRequest({ path: `${BASE}/resolve${buildQuery(query)}`, method: 'GET' })
   },
 
-  /** GET /quality-inspection-plans/validate */
-  async validate(query: Record<string, unknown>): Promise<QualityPlanValidation> {
-    return apiRequest({ path: `${BASE}/validate${buildQuery(query)}`, method: 'GET' })
+  /** GET /quality-inspection-plans/{planId}/validate */
+  async validate(planId: string): Promise<QualityPlanValidation> {
+    return apiRequest({ path: `${BASE}/${planId}/validate`, method: 'GET' })
   },
 
   /** GET /quality-inspection-plans/{planId}/snapshot */
@@ -83,15 +82,6 @@ export const qualityPlanAnalyticsApi = {
       path: `${BASE}/future-template-preview`,
       method: 'POST',
       headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: data,
-    })
-  },
-
-  /** POST /quality-inspection-plans/{planId}/preview */
-  async preview(planId: string, data: QualityPlanPreviewRequest): Promise<QualityPlanPreview> {
-    return apiRequest({
-      path: `${BASE}/${planId}/preview`,
-      method: 'POST',
       body: data,
     })
   },

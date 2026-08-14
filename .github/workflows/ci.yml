@@ -51,5 +51,8 @@ jobs:
       - name: Tests
         run: npm run test:run
 
+      - name: Run API Contract Audit
+        run: npm run contract:audit
+
       - name: Build
         run: npm run build

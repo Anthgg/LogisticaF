@@ -36,7 +36,7 @@ import {
   useUnloadingOperationsList,
 } from '../hooks/useInboundDocksQueries'
 import { useQuery } from '../hooks/useQuery'
-import type { DockCompatibilityResult, InboundDockAssignment } from '../types/inbound-docks'
+import type { InboundDockAssignment } from '../types/inbound-docks'
 import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
 
 type Tab = 'summary' | 'dock' | 'vehicle' | 'unloading' | 'responsibles' | 'seal' | 'events' | 'times' | 'integrity' | 'history'
@@ -77,16 +77,11 @@ export function InboundDockAssignmentDetailPage() {
   const times = useDockOperationalTimes(assignmentId ?? null)
   const integrity = useQuery<{ assignment_id: string; status: 'VALID' | 'FAILED' | 'PENDING'; failures: string[]; last_checked_at: string | null; partial_hash: string | null }>(
     ['dock-assignment-integrity', assignmentId],
-    assignmentId ? `/logistics/inbound/dock-assignments/${assignmentId}/integrity` : '',
+    '',  // sin contrato backend: integrity solo existe para unloading-operations
     undefined,
     { enabled: Boolean(assignmentId), refetchIntervalMs: 15_000 },
   )
-  useQuery<{ items: Array<{ id: string; dock_id: string; queue_entry_id: string; expires_at: string; server_time: string; created_at: string; compatible_docks: DockCompatibilityResult[]; incompatible_docks: DockCompatibilityResult[]; recommendation: { recommended_dock_id: string | null; recommended_dock_code: string | null; recommended_dock_name: string | null; reasons: string[]; is_available: boolean; matched_capabilities: string[]; estimated_wait_seconds: number | null; warnings: string[]; policy_used: string | null; alternatives: DockCompatibilityResult[] } | null }> }>(
-    ['dock-assignment-plans-by-assignment', assignmentId],
-    assignmentId ? `/logistics/inbound/dock-assignment-plans?assignment_id=${assignmentId}` : '',
-    undefined,
-    { enabled: Boolean(assignmentId), refetchIntervalMs: 15_000 },
-  )
+  // Sin contrato: los planes de asignación no son consultables por asignación.
   const operations = useUnloadingOperationsList(
     { assignment_id: assignmentId ?? undefined },
     { refetchIntervalMs: 10_000 },

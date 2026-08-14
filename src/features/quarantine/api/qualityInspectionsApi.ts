@@ -1,4 +1,5 @@
 import { apiRequest, getCsrfToken } from '../../../api/api-client'
+import { contractGap } from '../../../api/contract-availability'
 import type {
   QualityInspection,
   QualityInspectionControl,
@@ -57,26 +58,14 @@ export const qualityInspectionsApi = {
     })
   },
 
-  /** POST /quality-inspections/{inspectionId}/pause */
-  async pause(inspectionId: string, data?: { reason?: string }): Promise<QualityInspection> {
-    const csrf = await withCsrf()
-    return apiRequest({
-      path: `${BASE}/${inspectionId}/pause`,
-      method: 'POST',
-      headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: data ?? {},
-    })
+  /** Sin contrato: F045 no publica pausa de inspecciones. */
+  async pause(_inspectionId: string, _data?: { reason?: string }): Promise<never> {
+    throw contractGap('Pausar una inspección de calidad')
   },
 
-  /** POST /quality-inspections/{inspectionId}/resume */
-  async resume(inspectionId: string, data?: { reason?: string }): Promise<QualityInspection> {
-    const csrf = await withCsrf()
-    return apiRequest({
-      path: `${BASE}/${inspectionId}/resume`,
-      method: 'POST',
-      headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: data ?? {},
-    })
+  /** Sin contrato: F045 no publica reanudación de inspecciones. */
+  async resume(_inspectionId: string, _data?: { reason?: string }): Promise<never> {
+    throw contractGap('Reanudar una inspección de calidad')
   },
 
   /** POST /quality-inspections/{inspectionId}/complete */
@@ -106,37 +95,19 @@ export const qualityInspectionsApi = {
     })
   },
 
-  /** POST /quality-inspection-controls/{controlId}/corrections */
-  async requestControlResultCorrection(controlId: string, data: Record<string, unknown>): Promise<QualityInspectionControl> {
-    const csrf = await withCsrf()
-    return apiRequest({
-      path: `${CONTROLS_BASE}/${controlId}/corrections`,
-      method: 'POST',
-      headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: data,
-    })
+  /** Sin contrato: F045 no publica correcciones de resultados de control. */
+  async requestControlResultCorrection(_controlId: string, _data: Record<string, unknown>): Promise<never> {
+    throw contractGap('Solicitar la corrección de un resultado')
   },
 
-  /** POST /quality-inspection-controls/{controlId}/start */
-  async startControl(controlId: string): Promise<QualityInspectionControl> {
-    const csrf = await withCsrf()
-    return apiRequest({
-      path: `${CONTROLS_BASE}/${controlId}/start`,
-      method: 'POST',
-      headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: {},
-    })
+  /** Sin contrato: los controles se registran directamente mediante /results. */
+  async startControl(_controlId: string): Promise<never> {
+    throw contractGap('Iniciar un control de inspección')
   },
 
-  /** POST /quality-inspection-controls/{controlId}/not-applicable */
-  async markControlNotApplicable(controlId: string): Promise<QualityInspectionControl> {
-    const csrf = await withCsrf()
-    return apiRequest({
-      path: `${CONTROLS_BASE}/${controlId}/not-applicable`,
-      method: 'POST',
-      headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: {},
-    })
+  /** Sin contrato: no existe una transición separada a no aplicable. */
+  async markControlNotApplicable(_controlId: string): Promise<never> {
+    throw contractGap('Marcar un control como no aplicable')
   },
 
   /** GET /quality-inspections/{inspectionId}/measurements */

@@ -370,10 +370,3 @@ export async function apiRequest<T>(
 
   return execute({ csrf: false, authentication: false, rateLimit: false })
 }
-
-export function authenticatedFetch<T>(
-  path: string,
-  options: Omit<ApiRequestOptions, 'path'> = {},
-): Promise<T> {
-  return apiRequest<T>({ ...options, path })
-}

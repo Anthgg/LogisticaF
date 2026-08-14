@@ -1,8 +1,33 @@
 import { apiRequest, getCsrfToken } from '../../../api/api-client'
-import type {
-  QualityTolerance,
-  CreateQualityToleranceRequest,
-} from '../types/quality-inspection-plans'
+
+export interface QualityToleranceContract {
+  id: string
+  control_id: string
+  tolerance_type: string
+  min_value: string | null
+  max_value: string | null
+  target_value: string | null
+  absolute_deviation: string | null
+  percentage_deviation: string | null
+  valid_options: Record<string, unknown> | null
+  default_value: Record<string, unknown> | null
+  unit_code: string | null
+  description: string | null
+  created_at: string
+}
+
+export interface QualityToleranceContractRequest {
+  tolerance_type: string
+  min_value?: string | null
+  max_value?: string | null
+  target_value?: string | null
+  absolute_deviation?: string | null
+  percentage_deviation?: string | null
+  valid_options?: Record<string, unknown> | null
+  default_value?: Record<string, unknown> | null
+  unit_code?: string | null
+  description?: string | null
+}
 
 const BASE = '/logistics/quality-inspection-plans'
 
@@ -19,12 +44,12 @@ async function withCsrf(): Promise<Record<string, string>> {
 
 export const qualityTolerancesApi = {
   /** GET /quality-inspection-plans/controls/{controlId}/tolerances */
-  async list(controlId: string): Promise<QualityTolerance[]> {
+  async list(controlId: string): Promise<QualityToleranceContract[]> {
     return apiRequest({ path: `${BASE}/controls/${controlId}/tolerances`, method: 'GET' })
   },
 
   /** POST /quality-inspection-plans/controls/{controlId}/tolerances */
-  async create(controlId: string, data: CreateQualityToleranceRequest): Promise<QualityTolerance> {
+  async create(controlId: string, data: QualityToleranceContractRequest): Promise<QualityToleranceContract> {
     const csrf = await withCsrf()
     return apiRequest({
       path: `${BASE}/controls/${controlId}/tolerances`,
@@ -35,12 +60,12 @@ export const qualityTolerancesApi = {
   },
 
   /** GET /quality-inspection-plans/tolerances/{toleranceId} */
-  async get(toleranceId: string): Promise<QualityTolerance> {
+  async get(toleranceId: string): Promise<QualityToleranceContract> {
     return apiRequest({ path: `${BASE}/tolerances/${toleranceId}`, method: 'GET' })
   },
 
   /** PATCH /quality-inspection-plans/tolerances/{toleranceId} */
-  async update(toleranceId: string, data: CreateQualityToleranceRequest): Promise<QualityTolerance> {
+  async update(toleranceId: string, data: QualityToleranceContractRequest): Promise<QualityToleranceContract> {
     const csrf = await withCsrf()
     return apiRequest({
       path: `${BASE}/tolerances/${toleranceId}`,

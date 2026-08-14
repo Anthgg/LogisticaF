@@ -1,4 +1,10 @@
 import { apiRequest, getCsrfToken } from '../../../api/api-client'
+import type {
+  PutawayExecutionSessionApi,
+  PutawayScanEventApi,
+  PutawayScanRecordRequest,
+  PutawayScanValidationRequest,
+} from '../types/putaway-api'
 
 const BASE = '/logistics/putaway/sessions'
 
@@ -15,18 +21,17 @@ async function withCsrf(): Promise<Record<string, string>> {
 
 export const putawaySessionsApi = {
   /** POST /putaway/sessions/{session_id}/complete */
-  async completeSession(sessionId: string, data: Record<string, unknown> = {}): Promise<unknown> {
+  async completeSession(sessionId: string): Promise<PutawayExecutionSessionApi> {
     const csrf = await withCsrf()
     return apiRequest({
       path: `${BASE}/${sessionId}/complete`,
       method: 'POST',
       headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: data,
     })
   },
 
   /** POST /putaway/sessions/{session_id}/scans */
-  async createScan(sessionId: string, data: Record<string, unknown>): Promise<unknown> {
+  async createScan(sessionId: string, data: PutawayScanRecordRequest): Promise<PutawayScanEventApi> {
     const csrf = await withCsrf()
     return apiRequest({
       path: `${BASE}/${sessionId}/scans`,
@@ -37,12 +42,16 @@ export const putawaySessionsApi = {
   },
 
   /** GET /putaway/sessions/{session_id}/scans */
-  async listScans(sessionId: string): Promise<unknown[]> {
+  async listScans(sessionId: string): Promise<PutawayScanEventApi[]> {
     return apiRequest({ path: `${BASE}/${sessionId}/scans`, method: 'GET' })
   },
 
   /** POST /putaway/sessions/{session_id}/scans/{event_id}/validate-product */
-  async validateProduct(sessionId: string, eventId: string, data: Record<string, unknown> = {}): Promise<unknown> {
+  async validateProduct(
+    sessionId: string,
+    eventId: string,
+    data: PutawayScanValidationRequest,
+  ): Promise<PutawayScanEventApi> {
     const csrf = await withCsrf()
     return apiRequest({
       path: `${BASE}/${sessionId}/scans/${eventId}/validate-product`,
@@ -53,7 +62,11 @@ export const putawaySessionsApi = {
   },
 
   /** POST /putaway/sessions/{session_id}/scans/{event_id}/validate-location */
-  async validateLocation(sessionId: string, eventId: string, data: Record<string, unknown> = {}): Promise<unknown> {
+  async validateLocation(
+    sessionId: string,
+    eventId: string,
+    data: PutawayScanValidationRequest,
+  ): Promise<PutawayScanEventApi> {
     const csrf = await withCsrf()
     return apiRequest({
       path: `${BASE}/${sessionId}/scans/${eventId}/validate-location`,

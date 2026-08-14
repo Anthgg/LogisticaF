@@ -27,7 +27,7 @@ export function QualityInspectionSamplingPanel({
 
   const { data: sampleSets, isLoading, refetch } = useQuery<QualityInspectionSampleSet[]>(
     ['sample-sets', inspectionId],
-    `/logistics/quality-inspections/inspections/${inspectionId}/sample-sets`,
+    `/logistics/quality-inspections/${inspectionId}/sample-sets`,
     undefined,
     { enabled: Boolean(inspectionId) },
   )

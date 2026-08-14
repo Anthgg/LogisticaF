@@ -1,4 +1,5 @@
-import { apiRequest, getCsrfToken } from './api-client'
+import { apiRequest, getCsrfToken } from './api-client'
+import { ApiRequestError } from '../types/api'
 import type { PaginatedResponse } from '../types/logistics-resources'
 import type {
   PurchaseRequisition,
@@ -41,22 +42,14 @@ export const purchaseRequisitionsApi = {
   },
 
   async getStats(): Promise<PurchaseRequisitionStats> {
-    try {
-      // NOT_IN_CONTRACT_0.9.3: GET /logistics/procurement/requisitions/stats
-      return await apiRequest({ path: `${BASE}/stats` })
-    } catch {
-      return {
-        total_requisitions: 0,
-        draft_count: 0,
-        submitted_count: 0,
-        under_review_count: 0,
-        approved_count: 0,
-        rejected_count: 0,
-        returned_count: 0,
-        urgent_count: 0,
-        pending_my_review_count: 0,
-      }
-    }
+    // Sin contrato: el backend no publica /stats y "stats" caeria en un path
+    // param UUID (422). Se falla explicitamente en vez de devolver ceros: un
+    // agregado en cero se lee como dato confirmado, y aqui no hay dato. El
+    // consumidor ya trata el fallo mostrando la seccion como no disponible.
+    throw new ApiRequestError('El resumen no esta disponible en el contrato actual.', {
+      code: 'NOT_IMPLEMENTED_IN_CONTRACT',
+      status: 501,
+    })
   },
 
   async create(data: PurchaseRequisitionCreate): Promise<PurchaseRequisition> {

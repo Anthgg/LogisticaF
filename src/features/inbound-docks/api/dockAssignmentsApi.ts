@@ -1,5 +1,6 @@
 import { apiRequest } from '../../../api/api-client'
 import { getCsrfToken } from '../../../api/csrf'
+import { contractGap } from '../../../api/contract-availability'
 import type {
   InboundDockAssignment,
   DockAssignmentPlan,
@@ -40,6 +41,9 @@ function withIdempotency(
 function generateKey(): string {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
+
+/** Base real del recurso de exportaciones de operaciones de muelle. */
+export const DOCK_OPERATION_EXPORTS_BASE = '/logistics/dock-operation-exports'
 
 export const dockAssignmentsApi = {
   async list(query: {
@@ -91,21 +95,12 @@ export const dockAssignmentsApi = {
     })
   },
 
-  async getPlan(planId: string): Promise<DockAssignmentPlan> {
-    try {
-      return await apiRequest<DockAssignmentPlan>({ path: `${BASE_PLANS}/${planId}` })
-    } catch {
-      return {
-        id: planId,
-        queue_entry_id: 'q-1',
-        compatible_docks: [],
-        incompatible_docks: [],
-        recommendation: null,
-        expires_at: new Date(Date.now() + 3600000).toISOString(),
-        server_time: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      }
-    }
+  /**
+   * El plan no es un recurso consultable: el backend lo CALCULA al crearlo y
+   * expira. Se conserva en el estado de quien lo pidió; no hay GET que emitir.
+   */
+  async getPlan(_planId: string): Promise<DockAssignmentPlan> {
+    throw contractGap('Releer un plan de asignación ya calculado')
   },
 
   async executePlan(data: ExecuteDockAssignmentPlanRequest): Promise<InboundDockAssignment> {
@@ -280,7 +275,7 @@ export const dockAssignmentsApi = {
     const csrf = await withCsrf()
     const headers = withIdempotency(csrf, idempotencyKey)
     return apiRequest<DockOperationExportJob>({
-      path: '/logistics/dock-operation-exports',
+      path: DOCK_OPERATION_EXPORTS_BASE,
       method: 'POST',
       headers,
       body: data,
@@ -289,7 +284,7 @@ export const dockAssignmentsApi = {
 
   async getExportJob(jobId: string): Promise<DockOperationExportJob> {
     return apiRequest<DockOperationExportJob>({
-      path: `/logistics/dock-operation-exports/${jobId}`,
+      path: `${DOCK_OPERATION_EXPORTS_BASE}/${jobId}`,
       method: 'GET',
     })
   },

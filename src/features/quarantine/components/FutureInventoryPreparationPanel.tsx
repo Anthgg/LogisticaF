@@ -30,7 +30,7 @@ function ReadOnlyField({ label, value }: { label: string; value: string | null |
 function MovementTab({ allocationId }: { allocationId: string }) {
   const { data, isLoading, isError, error } = useQuery<FutureInventoryMovementPreparation>(
     ['future-movement', allocationId],
-    `/logistics/quality-availability/future-movement-preparation/${allocationId}`,
+    `/logistics/quality-quarantine-cases/${allocationId}/future-movement-preparation`,
   )
 
   if (isLoading) {
@@ -86,7 +86,7 @@ function MovementTab({ allocationId }: { allocationId: string }) {
 function BalanceTab({ allocationId }: { allocationId: string }) {
   const { data, isLoading, isError, error } = useQuery<FutureInventoryBalancePreparation>(
     ['future-balance', allocationId],
-    `/logistics/quality-availability/future-balance-preparation/${allocationId}`,
+    `/logistics/quality-quarantine-cases/${allocationId}/future-balance-preparation`,
   )
 
   if (isLoading) {
@@ -141,7 +141,7 @@ function BalanceTab({ allocationId }: { allocationId: string }) {
 function TraceabilityTab({ allocationId }: { allocationId: string }) {
   const { data, isLoading, isError, error } = useQuery<FutureTraceabilityPreparation>(
     ['future-traceability', allocationId],
-    `/logistics/quality-availability/future-traceability-preparation/${allocationId}`,
+    `/logistics/quality-quarantine-cases/${allocationId}/future-traceability-preparation`,
   )
 
   if (isLoading) {

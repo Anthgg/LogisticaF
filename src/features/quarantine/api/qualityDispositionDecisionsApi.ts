@@ -1,4 +1,5 @@
 import { apiRequest, getCsrfToken } from '../../../api/api-client'
+import { contractGap } from '../../../api/contract-availability'
 import type {
   QualityDispositionDecision,
   CreateQualityDispositionDecisionRequest,
@@ -22,22 +23,16 @@ export const qualityDispositionDecisionsApi = {
   async create(caseId: string, data: CreateQualityDispositionDecisionRequest): Promise<QualityDispositionDecision> {
     const csrf = await withCsrf()
     return apiRequest({
-      path: `/logistics/quality-quarantine-cases/${caseId}/disposition-decisions`,
+      path: `/logistics/quality-quarantine-cases/${caseId}/decisions`,
       method: 'POST',
       headers: { ...csrf, 'Idempotency-Key': generateKey() },
       body: data,
     })
   },
 
-  /** POST /quality-disposition-decisions/{decisionId}/submit */
-  async submit(decisionId: string): Promise<QualityDispositionDecision> {
-    const csrf = await withCsrf()
-    return apiRequest({
-      path: `${BASE}/${decisionId}/submit`,
-      method: 'POST',
-      headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: {},
-    })
+  /** Sin contrato: la decisión se crea y luego puede aprobarse; no existe submit. */
+  async submit(_decisionId: string): Promise<never> {
+    throw contractGap('Enviar una decisión de disposición')
   },
 
   /** POST /quality-disposition-decisions/{decisionId}/approve */

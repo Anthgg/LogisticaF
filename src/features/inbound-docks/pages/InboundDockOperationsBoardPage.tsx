@@ -24,7 +24,10 @@ export function InboundDockOperationsBoardPage() {
   const [filter, setFilter] = useState<QueueFilter>({})
   const [view, setView] = useState<ViewMode>('board')
   const [priorityEntry, setPriorityEntry] = useState<InboundDockQueueEntry | null>(null)
-  const warehouseId = filter.warehouse_id ?? context.warehouse_id ?? options.warehouses[0]?.id ?? ''
+  // Sin almacen resuelto el valor es null, nunca cadena vacia: un ''
+  // acabaria viajando como `?warehouse_id=` a un parametro UUID.
+  const warehouseId =
+    filter.warehouse_id ?? context.warehouse_id ?? options.warehouses[0]?.id ?? null
   useEffect(() => {
     if (!filter.warehouse_id && warehouseId) {
       setFilter((prev) => ({ ...prev, warehouse_id: warehouseId }))

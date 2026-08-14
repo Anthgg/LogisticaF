@@ -1,15 +1,14 @@
 import { useCallback, useState } from 'react'
 import { Button } from '../../../components/common/Button'
 import { useMutation } from '../../inbound-docks/hooks/useQuery'
-import { apiRequest, getCsrfToken } from '../../../api/api-client'
 import { StatusPill, EmptyPanel, ErrorPanel } from '../../inbound-docks/components/ui/Primitives'
 import { PackagingQualityControlForm, WeightQualityControlForm, TemperatureQualityControlForm, GenericQualityControlForm } from './QualityControlForms'
+import { qualityControlsApi } from '../api/qualityControlsApi'
 import type {
   QualityControlDefinition,
   QualityInspectionPlanCapabilities,
   QualityControlType,
   CreateQualityControlRequest,
-  ReorderQualityControlsRequest,
 } from '../types/quality-inspection-plans'
 
 const CONTROL_TYPE_LABEL: Record<QualityControlType, string> = {
@@ -57,12 +56,12 @@ const EMPTY_CONTROL_FORM: ControlFormData = {
 }
 
 export function QualityControlsEditor({
-  versionId,
+  planId,
   controls,
   capabilities,
   onRefresh,
 }: {
-  versionId: string
+  planId: string
   controls: QualityControlDefinition[]
   capabilities: QualityInspectionPlanCapabilities
   onRefresh: () => void
@@ -74,15 +73,7 @@ export function QualityControlsEditor({
   const [error, setError] = useState<string | null>(null)
 
   const createControlMutation = useMutation<CreateQualityControlRequest, { control_id: string }>(
-    async (input) => {
-      const csrf = await getCsrfToken()
-      return apiRequest<{ control_id: string }>({
-        path: `/logistics/quality/versions/${versionId}/controls`,
-        method: 'POST',
-        body: input,
-        headers: { 'X-CSRF-Token': csrf },
-      })
-    },
+    async (input) => qualityControlsApi.create(planId, input),
     {
       onSuccess: () => {
         setShowForm(false)
@@ -94,52 +85,12 @@ export function QualityControlsEditor({
   )
 
   const updateControlMutation = useMutation<{ controlId: string; data: Partial<CreateQualityControlRequest> }, void>(
-    async (input) => {
-      const csrf = await getCsrfToken()
-      await apiRequest({
-        path: `/logistics/quality/controls/${input.controlId}`,
-        method: 'PATCH',
-        body: input.data,
-        headers: { 'X-CSRF-Token': csrf },
-      })
-    },
+    async (input) => { await qualityControlsApi.update(input.controlId, input.data) },
     { onSuccess: () => { setShowForm(false); setEditingControlId(null); onRefresh() }, onError: (err) => setError(err.message) },
   )
 
-  const deactivateControlMutation = useMutation<{ controlId: string }, void>(
-    async (input) => {
-      const csrf = await getCsrfToken()
-      await apiRequest({
-        path: `/logistics/quality/controls/${input.controlId}/deactivate`,
-        method: 'POST',
-        headers: { 'X-CSRF-Token': csrf },
-      })
-    },
-    { onSuccess: () => onRefresh(), onError: (err) => setError(err.message) },
-  )
-
-  const cloneControlMutation = useMutation<{ controlId: string }, { control_id: string }>(
-    async (input) => {
-      const csrf = await getCsrfToken()
-      return apiRequest<{ control_id: string }>({
-        path: `/logistics/quality/controls/${input.controlId}/clone`,
-        method: 'POST',
-        headers: { 'X-CSRF-Token': csrf },
-      })
-    },
-    { onSuccess: () => onRefresh(), onError: (err) => setError(err.message) },
-  )
-
-  const reorderMutation = useMutation<ReorderQualityControlsRequest, void>(
-    async (input) => {
-      const csrf = await getCsrfToken()
-      await apiRequest({
-        path: `/logistics/quality/versions/${versionId}/controls/reorder`,
-        method: 'PUT',
-        body: input,
-        headers: { 'X-CSRF-Token': csrf },
-      })
-    },
+  const deleteControlMutation = useMutation<{ controlId: string }, void>(
+    async (input) => { await qualityControlsApi.delete(input.controlId) },
     { onSuccess: () => onRefresh(), onError: (err) => setError(err.message) },
   )
 
@@ -163,33 +114,11 @@ export function QualityControlsEditor({
     })
   }, [])
 
-  const handleCloneControl = useCallback((controlId: string) => {
-    cloneControlMutation.mutate({ controlId })
-  }, [cloneControlMutation])
-
-  const handleDeactivateControl = useCallback((controlId: string) => {
-    if (window.confirm('¿Desactivar este control? No se eliminará, pero no se aplicará en nuevas inspecciones.')) {
-      deactivateControlMutation.mutate({ controlId })
+  const handleDeleteControl = useCallback((controlId: string) => {
+    if (window.confirm('¿Eliminar este control del plan? Esta acción no se puede deshacer.')) {
+      deleteControlMutation.mutate({ controlId })
     }
-  }, [deactivateControlMutation])
-
-  const handleMoveUp = useCallback((index: number) => {
-    if (index === 0) return
-    const orderedIds = controls.map((c) => c.control_id)
-    const temp = orderedIds[index - 1]
-    orderedIds[index - 1] = orderedIds[index]
-    orderedIds[index] = temp
-    reorderMutation.mutate({ ordered_control_ids: orderedIds })
-  }, [controls, reorderMutation])
-
-  const handleMoveDown = useCallback((index: number) => {
-    if (index >= controls.length - 1) return
-    const orderedIds = controls.map((c) => c.control_id)
-    const temp = orderedIds[index]
-    orderedIds[index] = orderedIds[index + 1]
-    orderedIds[index + 1] = temp
-    reorderMutation.mutate({ ordered_control_ids: orderedIds })
-  }, [controls, reorderMutation])
+  }, [deleteControlMutation])
 
   const handleSubmitControl = useCallback(() => {
     const payload: CreateQualityControlRequest = {
@@ -379,7 +308,7 @@ export function QualityControlsEditor({
         />
       ) : (
         <div className="space-y-2">
-          {controls.map((control, index) => (
+          {controls.map((control) => (
             <div
               key={control.control_id}
               className={`rounded-xl border ${
@@ -391,31 +320,6 @@ export function QualityControlsEditor({
               } transition-colors`}
             >
               <div className="flex items-center gap-3 px-4 py-3">
-                <div className="flex flex-col gap-0.5">
-                  <button
-                    type="button"
-                    onClick={() => handleMoveUp(index)}
-                    disabled={index === 0 || !capabilities.can_manage_controls}
-                    className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                    aria-label="Mover arriba"
-                  >
-                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleMoveDown(index)}
-                    disabled={index === controls.length - 1 || !capabilities.can_manage_controls}
-                    className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                    aria-label="Mover abajo"
-                  >
-                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                </div>
-
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
                   {control.display_order}
                 </span>
@@ -451,13 +355,8 @@ export function QualityControlsEditor({
                     </Button>
                   )}
                   {capabilities.can_manage_controls && (
-                    <Button variant="ghost" size="small" onClick={() => handleCloneControl(control.control_id)}>
-                      Clonar
-                    </Button>
-                  )}
-                  {capabilities.can_manage_controls && control.active && (
-                    <Button variant="ghost" size="small" onClick={() => handleDeactivateControl(control.control_id)}>
-                      Desactivar
+                    <Button variant="ghost" size="small" onClick={() => handleDeleteControl(control.control_id)}>
+                      Eliminar
                     </Button>
                   )}
                 </div>

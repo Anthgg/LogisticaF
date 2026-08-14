@@ -43,7 +43,7 @@ export function CompleteQualityInspectionDialog({
     isLoading: isLoadingInspection,
   } = useQuery<QualityInspection>(
     ['inspection', inspectionId],
-    `/logistics/quality-inspections/inspections/${inspectionId}`,
+    `/logistics/quality-inspections/${inspectionId}`,
     undefined,
     { enabled: isOpen },
   )
@@ -53,7 +53,7 @@ export function CompleteQualityInspectionDialog({
     isLoading: isLoadingControls,
   } = useQuery<QualityInspectionControl[]>(
     ['inspection-controls', inspectionId],
-    `/logistics/quality-inspections/inspections/${inspectionId}/controls`,
+    `/logistics/quality-inspections/${inspectionId}/controls`,
     undefined,
     { enabled: isOpen },
   )

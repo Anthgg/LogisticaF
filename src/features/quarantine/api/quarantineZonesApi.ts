@@ -1,4 +1,5 @@
 import { apiRequest, getCsrfToken } from '../../../api/api-client'
+import { contractGap } from '../../../api/contract-availability'
 
 const ZONES_BASE = '/logistics/quarantine-zones'
 
@@ -62,36 +63,18 @@ export const quarantineZonesApi = {
     })
   },
 
-  /** POST /quarantine-zones/{zoneId}/activate */
-  async activateZone(zoneId: string): Promise<QuarantineZone> {
-    const csrf = await withCsrf()
-    return apiRequest({
-      path: `${ZONES_BASE}/${zoneId}/activate`,
-      method: 'POST',
-      headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: {},
-    })
+  /** Sin contrato: F045 solo publica listado y creación de zonas. */
+  async activateZone(_zoneId: string): Promise<never> {
+    throw contractGap('Activar una zona de cuarentena')
   },
 
-  /** POST /quarantine-zones/{zoneId}/block */
-  async blockZone(zoneId: string): Promise<QuarantineZone> {
-    const csrf = await withCsrf()
-    return apiRequest({
-      path: `${ZONES_BASE}/${zoneId}/block`,
-      method: 'POST',
-      headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: {},
-    })
+  /** Sin contrato: F045 solo publica listado y creación de zonas. */
+  async blockZone(_zoneId: string): Promise<never> {
+    throw contractGap('Bloquear una zona de cuarentena')
   },
 
-  /** POST /quarantine-zones/{zoneId}/archive */
-  async archiveZone(zoneId: string): Promise<QuarantineZone> {
-    const csrf = await withCsrf()
-    return apiRequest({
-      path: `${ZONES_BASE}/${zoneId}/archive`,
-      method: 'POST',
-      headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: {},
-    })
+  /** Sin contrato: F045 solo publica listado y creación de zonas. */
+  async archiveZone(_zoneId: string): Promise<never> {
+    throw contractGap('Archivar una zona de cuarentena')
   },
 }

@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react'
 import { Button } from '../../../components/common/Button'
 import { useMutation } from '../../inbound-docks/hooks/useQuery'
-import { apiRequest, getCsrfToken } from '../../../api/api-client'
 import { StatusPill, EmptyPanel, ErrorPanel } from '../../inbound-docks/components/ui/Primitives'
+import { qualityPlanScopesApi } from '../api/qualityPlanScopesApi'
 import type {
   QualityPlanScope,
   QualityInspectionPlanCapabilities,
@@ -47,12 +47,12 @@ function formatDate(iso: string | null): string {
 }
 
 export function QualityPlanScopesEditor({
-  versionId,
+  planId,
   scopes,
   capabilities,
   onRefresh,
 }: {
-  versionId: string
+  planId: string
   scopes: QualityPlanScope[]
   capabilities: QualityInspectionPlanCapabilities
   onRefresh: () => void
@@ -65,15 +65,7 @@ export function QualityPlanScopesEditor({
   const [categorySearch, setCategorySearch] = useState('')
 
   const createScopeMutation = useMutation<CreateQualityPlanScopeRequest, { scope_id: string }>(
-    async (input) => {
-      const csrf = await getCsrfToken()
-      return apiRequest<{ scope_id: string }>({
-        path: `/logistics/quality/versions/${versionId}/scopes`,
-        method: 'POST',
-        body: input,
-        headers: { 'X-CSRF-Token': csrf },
-      })
-    },
+    async (input) => qualityPlanScopesApi.create(planId, input),
     {
       onSuccess: () => {
         setShowForm(false)
@@ -84,15 +76,21 @@ export function QualityPlanScopesEditor({
     },
   )
 
-  const deleteScopeMutation = useMutation<{ scopeId: string }, void>(
-    async (input) => {
-      const csrf = await getCsrfToken()
-      await apiRequest({
-        path: `/logistics/quality/scopes/${input.scopeId}`,
-        method: 'DELETE',
-        headers: { 'X-CSRF-Token': csrf },
-      })
+  const updateScopeMutation = useMutation<{ scopeId: string; data: CreateQualityPlanScopeRequest }, void>(
+    async (input) => { await qualityPlanScopesApi.update(input.scopeId, input.data) },
+    {
+      onSuccess: () => {
+        setShowForm(false)
+        setEditingScopeId(null)
+        setFormData(EMPTY_FORM)
+        onRefresh()
+      },
+      onError: (err) => setError(err.message),
     },
+  )
+
+  const deleteScopeMutation = useMutation<{ scopeId: string }, void>(
+    async (input) => { await qualityPlanScopesApi.delete(input.scopeId) },
     { onSuccess: () => onRefresh(), onError: (err) => setError(err.message) },
   )
 
@@ -146,8 +144,12 @@ export function QualityPlanScopesEditor({
       return
     }
 
-    createScopeMutation.mutate(payload)
-  }, [formData, createScopeMutation])
+    if (editingScopeId) {
+      updateScopeMutation.mutate({ scopeId: editingScopeId, data: payload })
+    } else {
+      createScopeMutation.mutate(payload)
+    }
+  }, [formData, editingScopeId, createScopeMutation, updateScopeMutation])
 
   const handleCancel = useCallback(() => {
     setShowForm(false)
@@ -343,7 +345,7 @@ export function QualityPlanScopesEditor({
               variant="primary"
               size="small"
               onClick={handleSubmit}
-              isLoading={createScopeMutation.isPending}
+              isLoading={createScopeMutation.isPending || updateScopeMutation.isPending}
             >
               {editingScopeId ? 'Guardar cambios' : 'Agregar ámbito'}
             </Button>

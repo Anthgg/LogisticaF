@@ -1,412 +1,258 @@
-import React, { useState } from 'react';
-import { apiRequest, getCsrfToken } from '../../../api/api-client';
-import { Button } from '../../../components/common/Button';
-import { Input } from '../../../components/common/Input';
-import { useMutation } from '../../inbound-docks/hooks/useQuery';
-import type { QualityCertificateRequirement } from '../types/quality-inspection-plans';
+import { useState, type FormEvent } from 'react'
+import { Button } from '../../../components/common/Button'
+import { useMutation, useQuery } from '../../inbound-docks/hooks/useQuery'
+import { EmptyPanel, ErrorPanel, SkeletonRows, StatusPill } from '../../inbound-docks/components/ui/Primitives'
+import { qualityCertificateRequirementsApi } from '../api/qualityCertificateRequirementsApi'
+import type {
+  CreateQualityCertificateRequirementRequest,
+  QualityCertificateRequirement,
+  QualityCertificateValidationType,
+} from '../types/quality-inspection-plans'
 
-interface QualityCertificateRequirementsEditorProps {
-  versionId: string;
-  requirements: QualityCertificateRequirement[];
-  onRefresh: () => void;
+interface CertificateForm {
+  code: string
+  name: string
+  description: string
+  document_type_id: string
+  accepted_types: string
+  required: boolean
+  issuer_pattern: string
+  issue_date_required: boolean
+  expiration_required: boolean
+  minimum_validity_days: string
+  reference_number_required: boolean
+  file_required: boolean
+  metadata_validation: QualityCertificateValidationType
+  external_validation: QualityCertificateValidationType
+  instructions: string
 }
 
-const QualityCertificateRequirementsEditor: React.FC<QualityCertificateRequirementsEditorProps> = ({
-  versionId,
-  requirements,
+const EMPTY_FORM: CertificateForm = {
+  code: '',
+  name: '',
+  description: '',
+  document_type_id: '',
+  accepted_types: '',
+  required: true,
+  issuer_pattern: '',
+  issue_date_required: true,
+  expiration_required: false,
+  minimum_validity_days: '',
+  reference_number_required: false,
+  file_required: true,
+  metadata_validation: 'METADATA_ONLY',
+  external_validation: 'NONE',
+  instructions: '',
+}
+
+function toForm(requirement: QualityCertificateRequirement): CertificateForm {
+  return {
+    code: requirement.code,
+    name: requirement.name,
+    description: requirement.description ?? '',
+    document_type_id: requirement.document_type_id ?? '',
+    accepted_types: requirement.accepted_types.join(', '),
+    required: requirement.required,
+    issuer_pattern: requirement.issuer_pattern ?? '',
+    issue_date_required: requirement.issue_date_required,
+    expiration_required: requirement.expiration_required,
+    minimum_validity_days: requirement.minimum_validity_days?.toString() ?? '',
+    reference_number_required: requirement.reference_number_required,
+    file_required: requirement.file_required,
+    metadata_validation: requirement.metadata_validation,
+    external_validation: requirement.external_validation,
+    instructions: requirement.instructions ?? '',
+  }
+}
+
+function toRequest(form: CertificateForm): CreateQualityCertificateRequirementRequest {
+  return {
+    code: form.code.trim(),
+    name: form.name.trim(),
+    description: form.description.trim() || undefined,
+    document_type_id: form.document_type_id.trim() || undefined,
+    accepted_types: form.accepted_types.split(',').map((value) => value.trim()).filter(Boolean),
+    required: form.required,
+    issuer_pattern: form.issuer_pattern.trim() || undefined,
+    issue_date_required: form.issue_date_required,
+    expiration_required: form.expiration_required,
+    minimum_validity_days: form.minimum_validity_days ? Number(form.minimum_validity_days) : undefined,
+    reference_number_required: form.reference_number_required,
+    file_required: form.file_required,
+    metadata_validation: form.metadata_validation,
+    external_validation: form.external_validation,
+    instructions: form.instructions.trim() || undefined,
+  }
+}
+
+export default function QualityCertificateRequirementsEditor({
+  controlId,
+  canManage = true,
   onRefresh,
-}) => {
-  const [showForm, setShowForm] = useState(false);
-  const [editingRequirement, setEditingRequirement] = useState<QualityCertificateRequirement | null>(null);
-  
-  const EMPTY_FORM = {
-    code: '',
-    name: '',
-    description: '',
-    document_type_id: '',
-    accepted_types: [] as string[],
-    required: true,
-    issuer_pattern: '',
-    issue_date_required: true,
-    expiration_required: false,
-    minimum_validity_days: '',
-    reference_number_required: false,
-    file_required: true,
-    metadata_validation: '',
-    external_validation: '',
-    instructions: '',
-  };
+}: {
+  controlId?: string | null
+  canManage?: boolean
+  onRefresh?: () => void
+}) {
+  const [showForm, setShowForm] = useState(false)
+  const [editing, setEditing] = useState<QualityCertificateRequirement | null>(null)
+  const [form, setForm] = useState<CertificateForm>(EMPTY_FORM)
+  const [mutationError, setMutationError] = useState<string | null>(null)
 
-  const [formData, setFormData] = useState(EMPTY_FORM);
+  const {
+    data: requirements,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery<QualityCertificateRequirement[]>(
+    ['quality-control-certificates', controlId],
+    controlId ? `/logistics/quality-inspection-plans/controls/${controlId}/certificates` : '',
+    undefined,
+    { enabled: Boolean(controlId) },
+  )
 
-  const createMutation = useMutation<any, QualityCertificateRequirement>(
-    async (input) => {
-      const csrf = await getCsrfToken();
-      return apiRequest({
-        path: '/api/quality-inspection-plans/certificate-requirements/',
-        method: 'POST',
-        body: input,
-        headers: { 'X-CSRF-Token': csrf }
-      });
-    },
-    {
-      onSuccess: () => {
-        onRefresh();
-        setShowForm(false);
-        setFormData(EMPTY_FORM);
-      },
+  const finishMutation = () => {
+    setShowForm(false)
+    setEditing(null)
+    setForm(EMPTY_FORM)
+    setMutationError(null)
+    void refetch()
+    onRefresh?.()
+  }
+
+  const createMutation = useMutation<CreateQualityCertificateRequirementRequest, QualityCertificateRequirement>(
+    async (input) => qualityCertificateRequirementsApi.create(controlId as string, input),
+    { onSuccess: finishMutation, onError: (cause) => setMutationError(cause.message) },
+  )
+
+  const updateMutation = useMutation<{ certificateId: string; data: CreateQualityCertificateRequirementRequest }, QualityCertificateRequirement>(
+    async ({ certificateId, data }) => qualityCertificateRequirementsApi.update(certificateId, data),
+    { onSuccess: finishMutation, onError: (cause) => setMutationError(cause.message) },
+  )
+
+  const deleteMutation = useMutation<{ certificateId: string }, void>(
+    async ({ certificateId }) => qualityCertificateRequirementsApi.delete(certificateId),
+    { onSuccess: finishMutation, onError: (cause) => setMutationError(cause.message) },
+  )
+
+  if (!controlId) {
+    return (
+      <EmptyPanel
+        title="Seleccione un control"
+        description="Los certificados se configuran por control. No se realizó ninguna consulta porque falta el identificador del control."
+      />
+    )
+  }
+
+  const openCreate = () => {
+    setEditing(null)
+    setForm(EMPTY_FORM)
+    setMutationError(null)
+    setShowForm(true)
+  }
+
+  const openEdit = (requirement: QualityCertificateRequirement) => {
+    setEditing(requirement)
+    setForm(toForm(requirement))
+    setMutationError(null)
+    setShowForm(true)
+  }
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const input = toRequest(form)
+    if (!input.code || !input.name) {
+      setMutationError('Código y nombre son obligatorios.')
+      return
     }
-  );
-
-  const updateMutation = useMutation<any, QualityCertificateRequirement>(
-    async (input) => {
-      const csrf = await getCsrfToken();
-      return apiRequest({
-        path: `/api/quality-inspection-plans/certificate-requirements/${editingRequirement?.requirement_id}/`,
-        method: 'PUT',
-        body: input,
-        headers: { 'X-CSRF-Token': csrf }
-      });
-    },
-    {
-      onSuccess: () => {
-        onRefresh();
-        setShowForm(false);
-        setEditingRequirement(null);
-      },
-    }
-  );
-
-  const deleteMutation = useMutation<{ requirement_id: string }, void>(
-    async (input) => {
-      const csrf = await getCsrfToken();
-      return apiRequest({
-        path: `/api/quality-inspection-plans/certificate-requirements/${input.requirement_id}/`,
-        method: 'DELETE',
-        headers: { 'X-CSRF-Token': csrf }
-      });
-    },
-    {
-      onSuccess: () => {
-        onRefresh();
-        setShowForm(false);
-        setEditingRequirement(null);
-      },
-    }
-  );
-
-  const resetForm = () => {
-    setFormData(EMPTY_FORM);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingRequirement) {
-      updateMutation.mutate({ ...formData });
+    if (editing) {
+      updateMutation.mutate({ certificateId: editing.requirement_id, data: input })
     } else {
-      createMutation.mutate({ ...formData, version_id: versionId });
+      createMutation.mutate(input)
     }
-  };
+  }
 
-  const handleEdit = (requirement: QualityCertificateRequirement) => {
-    setEditingRequirement(requirement);
-    setFormData({
-      code: requirement.code,
-      name: requirement.name,
-      description: requirement.description || '',
-      document_type_id: requirement.document_type_id || '',
-      accepted_types: requirement.accepted_types || [],
-      required: requirement.required,
-      issuer_pattern: requirement.issuer_pattern || '',
-      issue_date_required: requirement.issue_date_required,
-      expiration_required: requirement.expiration_required,
-      minimum_validity_days: requirement.minimum_validity_days?.toString() || '',
-      reference_number_required: requirement.reference_number_required,
-      file_required: requirement.file_required,
-      metadata_validation: requirement.metadata_validation || '',
-      external_validation: requirement.external_validation || '',
-      instructions: requirement.instructions || '',
-    });
-    setShowForm(true);
-  };
-
-  const handleDelete = async () => {
-    if (editingRequirement && window.confirm('¿Está seguro de eliminar este requisito?')) {
-      deleteMutation.mutate({ requirement_id: editingRequirement.requirement_id });
-    }
-  };
-
-  const handleChange = (field: string, value: any) => {
-    setFormData((prev: any) => ({ ...prev, [field]: String(value) }));
-  };
-
-  const handleToggleItem = (field: string, item: string, checked: boolean) => {
-    setFormData((prev: any) => ({
-      ...prev,
-      [field]: checked 
-        ? [...prev[field], item] 
-        : prev[field].filter((i: string) => i !== item)
-    }));
-  };
-
-  const acceptedTypeOptions = [
-    { value: 'pdf', label: 'PDF' },
-    { value: 'image', label: 'Imagen' },
-    { value: 'document', label: 'Documento' },
-    { value: 'spreadsheet', label: 'Hoja de cálculo' },
-  ];
+  if (isLoading) return <SkeletonRows rows={3} />
+  if (error) return <ErrorPanel message={error} onRetry={() => void refetch()} />
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium text-gray-900">Requisitos de certificados</h3>
-        <Button
-          onClick={() => {
-            resetForm();
-            setEditingRequirement(null);
-            setShowForm(true);
-          }}
-        >
-          Nuevo requisito
-        </Button>
-      </div>
-
-      <div className="space-y-3">
-        {requirements.map((req) => (
-          <div
-            key={req.requirement_id}
-            className="border rounded-lg p-4 flex justify-between items-start hover:bg-gray-50"
-          >
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-900">{req.name}</span>
-                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{req.document_type_id}</span>
-                {req.required && (
-                  <span className="px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded-full">
-                    Requerido
-                  </span>
-                )}
-              </div>
-              {req.description && (
-                <p className="text-sm text-gray-500">{req.description}</p>
-              )}
-              <div className="flex gap-4 text-xs text-gray-500">
-                <span>Tipos aceptados: {req.accepted_types?.join(', ') || 'N/A'}</span>
-                {req.issuer_pattern && <span>Emisor: {req.issuer_pattern}</span>}
-              </div>
-            </div>
-            <Button
-              variant="secondary"
-              size="small"
-              onClick={() => handleEdit(req)}
-            >
-              Editar
-            </Button>
-          </div>
-        ))}
-        {requirements.length === 0 && (
-          <div className="text-center py-8 text-gray-500 border rounded-lg">
-            No hay requisitos de certificados configurados
-          </div>
-        )}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-bold text-slate-800">Requisitos de certificados</h3>
+          <p className="text-xs text-slate-500">Configuración asociada al control seleccionado.</p>
+        </div>
+        {canManage && !showForm && <Button size="small" onClick={openCreate}>Nuevo requisito</Button>}
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                {editingRequirement ? 'Editar requisito' : 'Nuevo requisito'}
-              </h2>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Input
-                      label="Código"
-                      value={formData.code}
-                      onChange={(e: any) => handleChange('code', e.target.value)}
-                      placeholder="Ej: CERT-001"
-                    />
-                  </div>
-                  <div>
-                    <Input
-                      label="Nombre"
-                      value={formData.name}
-                      onChange={(e: any) => handleChange('name', e.target.value)}
-                      placeholder="Nombre del requisito"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Input
-                    label="Descripción"
-                    value={formData.description}
-                    onChange={(e: any) => handleChange('description', e.target.value)}
-                    placeholder="Descripción del requisito"
-                  />
-                </div>
-
-                <div>
-                  <Input
-                    label="Tipo de documento"
-                    value={formData.document_type_id}
-                    onChange={(e: any) => handleChange('document_type_id', e.target.value)}
-                    placeholder="ID del tipo de documento"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Tipos aceptados</label>
-                  <div className="flex flex-wrap gap-2">
-                    {acceptedTypeOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => handleToggleItem('accepted_types', option.value, !formData.accepted_types.includes(option.value))}
-                        className={`px-3 py-1 rounded-full text-sm border ${
-                          formData.accepted_types.includes(option.value)
-                            ? 'bg-blue-100 border-blue-500 text-blue-800'
-                            : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="required"
-                      checked={formData.required}
-                      onChange={(e) => handleChange('required', e.target.checked)}
-                      className="h-4 w-4 text-blue-600"
-                    />
-                    <label htmlFor="required" className="text-sm text-gray-700">Requerido</label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="file_required"
-                      checked={formData.file_required}
-                      onChange={(e: any) => handleChange('file_required', e.target.checked)}
-                      className="h-4 w-4 text-blue-600"
-                    />
-                    <label htmlFor="file_required" className="text-sm text-gray-700">Archivo requerido</label>
-                  </div>
-                </div>
-
-                <div>
-                  <Input
-                    label="Patrón de emisor"
-                    value={formData.issuer_pattern}
-                    onChange={(e: any) => handleChange('issuer_pattern', e.target.value)}
-                    placeholder="Ej: ISO.*"
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="issue_date_required"
-                      checked={formData.issue_date_required}
-                      onChange={(e) => handleChange('issue_date_required', e.target.checked)}
-                      className="h-4 w-4 text-blue-600"
-                    />
-                    <label htmlFor="issue_date_required" className="text-sm text-gray-700">Fecha emisión requerida</label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="expiration_required"
-                      checked={formData.expiration_required}
-                      onChange={(e) => handleChange('expiration_required', e.target.checked)}
-                      className="h-4 w-4 text-blue-600"
-                    />
-                    <label htmlFor="expiration_required" className="text-sm text-gray-700">Expiración requerida</label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="reference_number_required"
-                      checked={formData.reference_number_required}
-                      onChange={(e) => handleChange('reference_number_required', e.target.checked)}
-                      className="h-4 w-4 text-blue-600"
-                    />
-                    <label htmlFor="reference_number_required" className="text-sm text-gray-700">Nº referencia requerido</label>
-                  </div>
-                </div>
-
-                <div>
-                  <Input
-                    label="Días mínimos de validez"
-                    type="number"
-                    value={formData.minimum_validity_days}
-                    onChange={(e: any) => handleChange('minimum_validity_days', e.target.value)}
-                    placeholder="Ej: 30"
-                  />
-                </div>
-
-                <div>
-                  <Input
-                    label="Validación de metadatos"
-                    value={formData.metadata_validation}
-                    onChange={(e: any) => handleChange('metadata_validation', e.target.value)}
-                    placeholder="Expresión de validación"
-                  />
-                </div>
-
-                <div>
-                  <Input
-                    label="Validación externa"
-                    value={formData.external_validation}
-                    onChange={(e: any) => handleChange('external_validation', e.target.value)}
-                    placeholder="URL o servicio de validación"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Instrucciones</label>
-                  <textarea
-                    value={formData.instructions}
-                    onChange={(e: any) => handleChange('instructions', e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                    rows={3}
-                    placeholder="Instrucciones para el proveedor"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-3 pt-4">
-                  {editingRequirement && (
-                    <Button type="button" variant="danger" onClick={handleDelete}>
-                      Eliminar
-                    </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => {
-                      setShowForm(false);
-                      setEditingRequirement(null);
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button type="submit">
-                    {editingRequirement ? 'Guardar cambios' : 'Crear requisito'}
-                  </Button>
-                </div>
-              </form>
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
+          <h4 className="text-xs font-bold text-slate-800">{editing ? 'Editar requisito' : 'Nuevo requisito'}</h4>
+          {mutationError && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{mutationError}</div>}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-xs text-slate-600">Código
+              <input value={form.code} onChange={(event) => setForm((previous) => ({ ...previous, code: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2" />
+            </label>
+            <label className="text-xs text-slate-600">Nombre
+              <input value={form.name} onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2" />
+            </label>
+            <label className="text-xs text-slate-600">Tipo de documento
+              <input value={form.document_type_id} onChange={(event) => setForm((previous) => ({ ...previous, document_type_id: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2" />
+            </label>
+            <label className="text-xs text-slate-600">Tipos aceptados (separados por coma)
+              <input value={form.accepted_types} onChange={(event) => setForm((previous) => ({ ...previous, accepted_types: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2" />
+            </label>
+            <label className="text-xs text-slate-600 sm:col-span-2">Descripción
+              <textarea value={form.description} onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))} rows={2} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2" />
+            </label>
+            <label className="text-xs text-slate-600">Emisor esperado
+              <input value={form.issuer_pattern} onChange={(event) => setForm((previous) => ({ ...previous, issuer_pattern: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2" />
+            </label>
+            <label className="text-xs text-slate-600">Validez mínima (días)
+              <input type="number" min={0} value={form.minimum_validity_days} onChange={(event) => setForm((previous) => ({ ...previous, minimum_validity_days: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2" />
+            </label>
           </div>
-        </div>
+          <div className="grid gap-2 text-xs text-slate-700 sm:grid-cols-2">
+            {([
+              ['required', 'Requerido'],
+              ['file_required', 'Archivo requerido'],
+              ['issue_date_required', 'Fecha de emisión requerida'],
+              ['expiration_required', 'Fecha de expiración requerida'],
+              ['reference_number_required', 'Número de referencia requerido'],
+            ] as const).map(([field, label]) => (
+              <label key={field} className="flex items-center gap-2">
+                <input type="checkbox" checked={form[field]} onChange={(event) => setForm((previous) => ({ ...previous, [field]: event.target.checked }))} />
+                {label}
+              </label>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2">
+            {editing && <Button type="button" variant="danger" size="small" onClick={() => window.confirm('¿Eliminar este requisito?') && deleteMutation.mutate({ certificateId: editing.requirement_id })}>Eliminar</Button>}
+            <Button type="button" variant="ghost" size="small" onClick={() => { setShowForm(false); setEditing(null); setMutationError(null) }}>Cancelar</Button>
+            <Button type="submit" size="small" isLoading={createMutation.isPending || updateMutation.isPending}>{editing ? 'Guardar cambios' : 'Crear requisito'}</Button>
+          </div>
+        </form>
       )}
-    </div>
-  );
-};
 
-export default QualityCertificateRequirementsEditor;
+      {!showForm && (requirements?.length ? (
+        <div className="space-y-2">
+          {requirements.map((requirement) => (
+            <div key={requirement.requirement_id} className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-slate-800">{requirement.code}</span>
+                  <span className="text-xs text-slate-700">{requirement.name}</span>
+                  {requirement.required && <StatusPill tone="warning">Requerido</StatusPill>}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">{requirement.description || 'Sin descripción'}</p>
+              </div>
+              {canManage && <Button variant="ghost" size="small" onClick={() => openEdit(requirement)}>Editar</Button>}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyPanel title="Sin requisitos" description="El control no tiene requisitos de certificados configurados." />
+      ))}
+    </div>
+  )
+}

@@ -196,8 +196,14 @@ export const operationsApi = {
 
   // Reportes
   reports: {
-    count: (name: 'shipments-by-status' | 'shipments-by-priority' | 'incidents-summary', query?: ListQuery) =>
-      apiRequest<CountGroup[]>({ path: withQuery(`/reports/${name}`, query) }),
+    count: (name: 'shipments-by-status' | 'shipments-by-priority' | 'incidents-summary', query?: ListQuery) => {
+      const path = name === 'shipments-by-status'
+        ? '/reports/shipments-by-status'
+        : name === 'shipments-by-priority'
+          ? '/reports/shipments-by-priority'
+          : '/reports/incidents-summary'
+      return apiRequest<CountGroup[]>({ path: withQuery(path, query) })
+    },
     deliveries: (query?: ListQuery) =>
       apiRequest<DateCount[]>({ path: withQuery('/reports/deliveries-by-date', query) }),
     lowStock: (query?: ListQuery) =>

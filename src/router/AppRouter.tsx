@@ -57,7 +57,6 @@ import { InboundDockAssignmentDetailPage } from '../features/inbound-docks/pages
 import { UnloadingOperationWorkspace } from '../features/inbound-docks/pages/UnloadingOperationWorkspace'
 import { WarehouseDocksSettingsPage } from '../features/inbound-docks/pages/WarehouseDocksSettingsPage'
 import { InboundDockQueueEntryDetailPage } from '../features/inbound-docks/pages/InboundDockQueueEntryDetailPage'
-import { DockAssignmentPlanDetailPage } from '../features/inbound-docks/pages/DockAssignmentPlanDetailPage'
 import { InboundDockCalendarPage } from '../features/inbound-docks/pages/InboundDockCalendarPage'
 import { ReceptionDifferenceCasesPage } from '../features/reception-differences/pages/ReceptionDifferenceCasesPage'
 import { CreateReceptionDifferenceCasePage } from '../features/reception-differences/pages/CreateReceptionDifferenceCasePage'
@@ -505,7 +504,6 @@ export function AppRouter() {
                 <Route path="/logistics/inbound/docks/board" element={<InboundDockOperationsBoardPage />} />
                 <Route path="/logistics/inbound/docks/queue" element={<InboundDockQueuePage />} />
                 <Route path="/logistics/inbound/docks/queue/:entryId" element={<InboundDockQueueEntryDetailPage />} />
-                <Route path="/logistics/inbound/dock-assignment-plans/:planId" element={<DockAssignmentPlanDetailPage />} />
                 <Route path="/logistics/inbound/docks/calendar" element={<InboundDockCalendarPage />} />
                 <Route path="/logistics/inbound/docks/:dockId" element={<WarehouseDockDetailPage />} />
                 <Route path="/logistics/inbound/dock-assignments/:assignmentId" element={<InboundDockAssignmentDetailPage />} />

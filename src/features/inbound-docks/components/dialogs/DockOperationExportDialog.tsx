@@ -2,11 +2,16 @@ import { useEffect, useState } from 'react'
 import { Button } from '../../../../components/common/Button'
 import { DockModal } from './DockModal'
 import { useMutation, useQuery } from '../../hooks/useQuery'
-import { dockAssignmentsApi } from '../../api/dockAssignmentsApi'
+import { DOCK_OPERATION_EXPORTS_BASE, dockAssignmentsApi } from '../../api/dockAssignmentsApi'
 import { useLogisticsPermissions } from '../../../logistics-permissions/hooks/useLogisticsPermissions'
 import { LOGISTICS_PERMISSIONS } from '../../../logistics-permissions/logistics-permissions-map'
 import { formatServerDateTime, formatServerTime } from '../../utils/format'
-import type { DockOperationExportJob, ExportFormat } from '../../types/inbound-docks'
+import type { DockOperationExportJob, ExportFormat, ExportJobStatus } from '../../types/inbound-docks'
+
+/** El job deja de sondearse cuando llega a un estado del que no sale. */
+function isTerminalExportStatus(status: ExportJobStatus): boolean {
+  return status === 'READY' || status === 'FAILED' || status === 'EXPIRED'
+}
 
 const FORMATS: Array<{ value: ExportFormat; label: string; description: string }> = [
   { value: 'CSV', label: 'CSV', description: 'Texto separado por comas' },
@@ -59,12 +64,22 @@ export function DockOperationExportDialog({
     async (data) => dockAssignmentsApi.createExportJob(data),
     { onSuccess: (job) => setJobId(job.id) },
   )
+  // El job se consulta en su endpoint real. El sondeo se detiene al alcanzar un
+  // estado terminal, pero el job se conserva para no perder su download_url.
+  const [terminalJob, setTerminalJob] = useState<DockOperationExportJob | null>(null)
   const job = useQuery<DockOperationExportJob>(
     ['dock-export-job', jobId],
-    jobId ? `/logistics/inbound/dock-assignments/export/${jobId}` : '',
+    jobId ? `${DOCK_OPERATION_EXPORTS_BASE}/${jobId}` : '',
     undefined,
-    { enabled: Boolean(jobId), refetchIntervalMs: jobId ? 3_000 : null },
+    {
+      enabled: Boolean(jobId) && !terminalJob,
+      refetchIntervalMs: jobId && !terminalJob ? 3_000 : null,
+    },
   )
+  useEffect(() => {
+    if (job.data && isTerminalExportStatus(job.data.status)) setTerminalJob(job.data)
+  }, [job.data])
+  const currentJob = terminalJob ?? job.data ?? null
   const submit = async () => {
     setErrorMessage(null)
     if (!warehouseId) {
@@ -207,20 +222,20 @@ export function DockOperationExportDialog({
         {jobId && (
           <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-2 text-[11px]">
             <p>Job: <span className="font-mono text-slate-800">{jobId}</span></p>
-            <p>Estado: <span className="font-mono text-slate-800">{job.data?.status ?? '—'}</span></p>
-            {job.data?.completed_at && (
-              <p>Completado: {formatServerDateTime(job.data.completed_at)}</p>
+            <p>Estado: <span className="font-mono text-slate-800">{currentJob?.status ?? '—'}</span></p>
+            {currentJob?.completed_at && (
+              <p>Completado: {formatServerDateTime(currentJob.completed_at)}</p>
             )}
-            {job.data?.expires_at && (
-              <p>Vence: {formatServerTime(job.data.expires_at)}</p>
+            {currentJob?.expires_at && (
+              <p>Vence: {formatServerTime(currentJob.expires_at)}</p>
             )}
-            {job.data?.error_message && (
-              <p className="text-rose-700">Error: {job.data.error_message}</p>
+            {currentJob?.error_message && (
+              <p className="text-rose-700">Error: {currentJob.error_message}</p>
             )}
-            {job.data?.download_url && (
+            {currentJob?.download_url && (
               <a
                 className="text-[#1F4E6D] underline"
-                href={job.data.download_url}
+                href={currentJob.download_url}
                 rel="noreferrer"
                 target="_blank"
               >

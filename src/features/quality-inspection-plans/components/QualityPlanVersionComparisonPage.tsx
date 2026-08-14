@@ -110,12 +110,12 @@ export function QualityPlanVersionComparisonPage({
 }: QualityPlanVersionComparisonPageProps) {
   const { data: detailA, isLoading: loadingA, isError: errorA } = useQuery<VersionDetail>(
     ['quality-plan-version-detail', planId, versionA],
-    `/logistics/quality-inspection-plans/${planId}/versions/${versionA}`,
+    `/logistics/quality-inspection-plans/versions/${versionA}`,
   )
 
   const { data: detailB, isLoading: loadingB, isError: errorB } = useQuery<VersionDetail>(
     ['quality-plan-version-detail', planId, versionB],
-    `/logistics/quality-inspection-plans/${planId}/versions/${versionB}`,
+    `/logistics/quality-inspection-plans/versions/${versionB}`,
   )
 
   if (loadingA || loadingB) {

@@ -13,7 +13,9 @@
     "typecheck": "tsc -b --pretty false",
     "openapi:check": "node scripts/validate-openapi.mjs",
     "e2e": "playwright test",
-    "e2e:install": "playwright install chromium"
+    "e2e:install": "playwright install chromium",
+    "contract:audit": "node scripts/audit-api-contract.mjs",
+    "contract:manifest": "node scripts/generate-contract-manifest.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",

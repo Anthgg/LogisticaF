@@ -1,4 +1,5 @@
 import { apiRequest, getCsrfToken } from '../../../api/api-client'
+import type { PutawayOperationalPlacementApi } from '../types/putaway-api'
 
 const BASE = '/logistics/putaway/placements'
 
@@ -15,13 +16,12 @@ async function withCsrf(): Promise<Record<string, string>> {
 
 export const putawayPlacementsApi = {
   /** POST /putaway/placements/{confirmation_id}/finalize */
-  async finalizePlacement(confirmationId: string, data: Record<string, unknown> = {}): Promise<unknown> {
+  async finalizePlacement(confirmationId: string): Promise<PutawayOperationalPlacementApi> {
     const csrf = await withCsrf()
     return apiRequest({
       path: `${BASE}/${confirmationId}/finalize`,
       method: 'POST',
       headers: { ...csrf, 'Idempotency-Key': generateKey() },
-      body: data,
     })
   },
 }

@@ -65,25 +65,6 @@ export function QualityInspectionControlRenderer({
     },
   )
 
-  const startMutation = useMutation(
-    () => qualityInspectionsApi.startControl(control.control_id),
-    {
-      onSuccess: (result) => {
-        onControlUpdated(result)
-      },
-    },
-  )
-
-  const skipMutation = useMutation(
-    () =>
-      qualityInspectionsApi.markControlNotApplicable(control.control_id),
-    {
-      onSuccess: (result) => {
-        onControlUpdated(result)
-      },
-    },
-  )
-
   const valueType = control.result_value_type as ResultValueType
 
   function handleRecordResult() {
@@ -124,7 +105,6 @@ export function QualityInspectionControlRenderer({
   }
 
   const isCompleted = control.status === 'COMPLETED'
-  const isInProgress = control.status === 'IN_PROGRESS'
   const isFailed = control.status === 'FAILED'
   const isNotApplicable = control.status === 'NOT_APPLICABLE'
 
@@ -343,17 +323,6 @@ export function QualityInspectionControlRenderer({
         <div className="space-y-2">
           {renderInput()}
           <div className="flex gap-2">
-            {!isInProgress && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="small"
-                onClick={() => void startMutation.mutate(undefined as never)}
-                disabled={startMutation.isPending}
-              >
-                Iniciar
-              </Button>
-            )}
             <Button
               type="button"
               variant="primary"
@@ -363,15 +332,6 @@ export function QualityInspectionControlRenderer({
               disabled={recordMutation.isPending}
             >
               Registrar resultado
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="small"
-              onClick={() => void skipMutation.mutate({ control_id: control.control_id })}
-              disabled={skipMutation.isPending}
-            >
-              No aplica
             </Button>
           </div>
         </div>

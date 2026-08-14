@@ -1,18 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery } from '../../inbound-docks/hooks/useQuery'
-import { QualityPlanHistoryTimeline } from '../components/QualityPlanHistoryTimeline'
-import type { QualityPlanHistoryEvent } from '../types/quality-inspection-plans'
 
 export function QualityPlanHistoryPage() {
   const { planId } = useParams<{ planId: string }>()
   const navigate = useNavigate()
-
-  const { data: events, isLoading } = useQuery<QualityPlanHistoryEvent[]>(
-    ['quality-plan-history', planId],
-    `/logistics/quality-inspection-plans/${planId}/history`,
-    undefined,
-    { enabled: !!planId },
-  )
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
@@ -22,11 +12,9 @@ export function QualityPlanHistoryPage() {
           Volver
         </button>
       </div>
-      {isLoading ? (
-        <div className="text-xs text-slate-500">Cargando historial...</div>
-      ) : (
-        <QualityPlanHistoryTimeline events={events ?? []} />
-      )}
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
+        El historial no está disponible para el plan {planId ?? 'seleccionado'}: el backend publicado no expone esta ruta. Esta vista es de solo lectura y no realiza peticiones.
+      </div>
     </div>
   )
 }

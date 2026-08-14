@@ -1,444 +1,217 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation } from '../../inbound-docks/hooks/useQuery';
-import { useLogisticsPermissions } from '../../logistics-permissions/hooks/useLogisticsPermissions';
-import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map';
-import { getCsrfToken } from '../../../api/api-client';
-import { Button } from '../../../components/common/Button';
-import { Input } from '../../../components/common/Input';
-import type {
-  QualitySamplingPlan,
-  CreateQualitySamplingPlanRequest,
-  UnitOfMeasureSummary,
-} from '../types/quality-inspection-plans';
+import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
-interface QualitySampleSizePreviewPanelProps {
-  formData: any;
+import { Button } from '../../../components/common/Button'
+import { Input } from '../../../components/common/Input'
+import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
+import { useLogisticsPermissions } from '../../logistics-permissions/hooks/useLogisticsPermissions'
+import { useMutation, useQuery } from '../../inbound-docks/hooks/useQuery'
+import type {
+  QualitySamplingContract,
+  QualitySamplingContractRequest,
+} from '../api/qualitySamplingPlansApi'
+import { qualitySamplingPlansApi } from '../api/qualitySamplingPlansApi'
+
+interface SamplingForm {
+  sampling_type: string
+  fixed_count: string
+  percentage: string
+  minimum_count: string
+  package_level: string
+  lot_level: string
+  custom_formula: string
+  description: string
 }
 
-const QualitySampleSizePreviewPanel: React.FC<QualitySampleSizePreviewPanelProps> = ({ formData }) => {
-  const [populationSize, setPopulationSize] = useState<string>('');
+const emptyForm: SamplingForm = {
+  sampling_type: 'FIXED',
+  fixed_count: '',
+  percentage: '',
+  minimum_count: '',
+  package_level: '',
+  lot_level: '',
+  custom_formula: '',
+  description: '',
+}
 
-  const calculateSampleSize = () => {
-    if (!populationSize || populationSize === '') return null;
-    const popSize = parseInt(populationSize, 10);
-    if (isNaN(popSize) || popSize <= 0) return null;
+function optionalInteger(value: string): number | null {
+  return value.trim() === '' ? null : Number.parseInt(value, 10)
+}
 
-    let sampleSize = 0;
+function optionalText(value: string): string | null {
+  const trimmed = value.trim()
+  return trimmed === '' ? null : trimmed
+}
 
-    if (formData.sampling_method === 'fixed') {
-      sampleSize = parseInt(formData.fixed_sample_size || '0', 10);
-    } else if (formData.sampling_method === 'percentage') {
-      const percentage = parseFloat(formData.sampling_percentage || '0');
-      sampleSize = Math.ceil((popSize * percentage) / 100);
-    } else if (formData.sampling_method === 'min_max') {
-      const percentage = parseFloat(formData.sampling_percentage || '0');
-      const min = parseInt(formData.min_sample_size || '0', 10);
-      const max = parseInt(formData.max_sample_size || '0', 10);
-      sampleSize = Math.ceil((popSize * percentage) / 100);
-      if (sampleSize < min) sampleSize = min;
-      if (sampleSize > max) sampleSize = max;
-    }
+function toPayload(form: SamplingForm): QualitySamplingContractRequest {
+  return {
+    sampling_type: form.sampling_type,
+    fixed_count: optionalInteger(form.fixed_count),
+    percentage: optionalText(form.percentage),
+    minimum_count: optionalInteger(form.minimum_count),
+    package_level: optionalText(form.package_level),
+    lot_level: optionalText(form.lot_level),
+    custom_formula: optionalText(form.custom_formula),
+    description: optionalText(form.description),
+  }
+}
 
-    return sampleSize;
-  };
+export function QualitySamplingPlansPage() {
+  const { hasPermission } = useLogisticsPermissions()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const controlId = searchParams.get('control_id')?.trim() ?? ''
+  const [controlDraft, setControlDraft] = useState(controlId)
+  const [showForm, setShowForm] = useState(false)
+  const [editing, setEditing] = useState<QualitySamplingContract | null>(null)
+  const [form, setForm] = useState<SamplingForm>(emptyForm)
 
-  const calculatedSize = calculateSampleSize();
+  const list = useQuery<QualitySamplingContract[]>(
+    ['quality-control-samplings', controlId],
+    controlId ? `/logistics/quality-inspection-plans/controls/${controlId}/samplings` : '',
+    undefined,
+    { enabled: Boolean(controlId) },
+  )
 
-  return (
-    <div className="border rounded-lg p-4 bg-gray-50">
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-medium text-gray-700">Vista previa de tamaño de muestra</h4>
-        <span className="text-xs text-gray-400 bg-yellow-50 px-2 py-1 rounded">
-          Cálculo orientativo. No selecciona unidades físicas.
-        </span>
-      </div>
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Tamaño de población:</label>
-          <Input
-            label="Tamaño de población:"
-            value={populationSize}
-            onChange={(e) => setPopulationSize(e.target.value)}
-            placeholder="Ej: 1000"
-            className="w-32"
-          />
-        </div>
-        {calculatedSize !== null && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Muestra calculada:</span>
-            <span className="text-lg font-semibold text-blue-600">{calculatedSize}</span>
-            <span className="text-sm text-gray-500">unidades</span>
-          </div>
-        )}
-        <div className="text-xs text-gray-500">
-          Método: {formData.sampling_method === 'fixed' ? 'Fijo' :
-            formData.sampling_method === 'percentage' ? 'Porcentaje' :
-            'Mín-Máx'}
-        </div>
-      </div>
-    </div>
-  );
-};
+  const create = useMutation<QualitySamplingContractRequest, QualitySamplingContract>(
+    (input) => qualitySamplingPlansApi.create(controlId, input),
+    { onSuccess: () => { setShowForm(false); setForm(emptyForm); void list.refetch() } },
+  )
+  const update = useMutation<QualitySamplingContractRequest, QualitySamplingContract>(
+    (input) => qualitySamplingPlansApi.update(editing?.id ?? '', input),
+    { onSuccess: () => { setShowForm(false); setEditing(null); setForm(emptyForm); void list.refetch() } },
+  )
+  const remove = useMutation<string, void>(
+    (samplingId) => qualitySamplingPlansApi.delete(samplingId),
+    { onSuccess: () => { setShowForm(false); setEditing(null); void list.refetch() } },
+  )
 
-const QualitySamplingPlansPage: React.FC = () => {
-  const { hasPermission } = useLogisticsPermissions();
-  const [showForm, setShowForm] = useState(false);
-  const [editingPlan, setEditingPlan] = useState<QualitySamplingPlan | null>(null);
-  const [formData, setFormData] = useState<any>({
-    code: '',
-    name: '',
-    description: '',
-    sampling_type: 'random',
-    sampling_method: 'fixed',
-    fixed_sample_size: '',
-    sampling_percentage: '',
-    min_sample_size: '',
-    max_sample_size: '',
-    unit_id: '',
-    status: 'active',
-  });
+  const canRead = hasPermission(LOGISTICS_PERMISSIONS.qualitySamplingPlans.read)
+  const canCreate = hasPermission(LOGISTICS_PERMISSIONS.qualitySamplingPlans.create)
+  const error = list.error ?? create.error ?? update.error ?? remove.error
 
-  const { data: plans, isLoading, refetch } = useQuery<QualitySamplingPlan[]>(
-    ['quality-inspection-plans', 'sampling-plans'],
-    '/logistics/quality-inspection-plans/sampling-plans/',
-  );
+  if (!canRead) {
+    return <div className="p-4 text-center text-gray-500">No tiene permisos para acceder a esta sección.</div>
+  }
 
-  const { data: units } = useQuery<UnitOfMeasureSummary[]>(
-    ['quality-inspection-plans', 'units'],
-    '/logistics/quality-inspection-plans/units/',
-  );
+  const openCreate = () => {
+    setEditing(null)
+    setForm(emptyForm)
+    setShowForm(true)
+  }
 
-  const createMutation = useMutation<CreateQualitySamplingPlanRequest, QualitySamplingPlan>(
-    async (input) => {
-      return input as unknown as QualitySamplingPlan;
-    },
-    {
-      onSuccess: () => {
-        void refetch();
-        setShowForm(false);
-        resetForm();
-      },
-    }
-  );
-
-  const updateMutation = useMutation<Partial<CreateQualitySamplingPlanRequest>, QualitySamplingPlan>(
-    async (input) => {
-      return input as unknown as QualitySamplingPlan;
-    },
-    {
-      onSuccess: () => {
-        void refetch();
-        setShowForm(false);
-        setEditingPlan(null);
-        resetForm();
-      },
-    }
-  );
-
-  const deleteMutation = useMutation<void, void>(
-    async () => {
-      // Dummy
-    },
-    {
-      onSuccess: () => {
-        void refetch();
-        setEditingPlan(null);
-      },
-    }
-  );
-
-  const resetForm = () => {
-    setFormData({
-      code: '',
-      name: '',
-      description: '',
-      sampling_type: 'FIXED',
-      sample_unit: 'UNITS',
-      fixed_quantity: '',
-      percentage: '',
-      minimum: '',
-      maximum: '',
-      rounding_mode: 'HALF_UP',
-      selection_method: 'RANDOM',
-    } as any);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const csrfToken = await getCsrfToken();
-    if (editingPlan) {
-      updateMutation.mutate({ ...formData, csrf_token: csrfToken });
-    } else {
-      createMutation.mutate({ ...formData, csrf_token: csrfToken });
-    }
-  };
-
-  const handleEdit = (plan: QualitySamplingPlan) => {
-    setEditingPlan(plan);
-    setFormData({
-      code: plan.code,
-      name: plan.name,
-      description: plan.description || '',
-      sampling_type: plan.sampling_type,
-      sample_unit: plan.sample_unit,
-      fixed_quantity: plan.fixed_quantity || '',
-      percentage: plan.percentage || '',
-      minimum: plan.minimum || '',
-      maximum: plan.maximum || '',
-      rounding_mode: plan.rounding_mode,
-      selection_method: plan.selection_method,
-    } as any);
-    setShowForm(true);
-  };
-
-  const handleDelete = async () => {
-    if (editingPlan && window.confirm('¿Está seguro de eliminar este plan de muestreo?')) {
-      const csrfToken = await getCsrfToken();
-      deleteMutation.mutate({ csrf_token: csrfToken } as any);
-    }
-  };
-
-  const handleChange = (field: string, value: string) => {
-    setFormData((prev: any) => ({ ...prev, [field]: value }));
-  };
-
-  if (!hasPermission(LOGISTICS_PERMISSIONS.qualitySamplingPlans.create)) {
-    return (
-      <div className="p-4 text-center text-gray-500">
-        No tiene permisos para acceder a esta sección
-      </div>
-    );
+  const openEdit = (sampling: QualitySamplingContract) => {
+    setEditing(sampling)
+    setForm({
+      sampling_type: sampling.sampling_type,
+      fixed_count: sampling.fixed_count?.toString() ?? '',
+      percentage: sampling.percentage ?? '',
+      minimum_count: sampling.minimum_count?.toString() ?? '',
+      package_level: sampling.package_level ?? '',
+      lot_level: sampling.lot_level ?? '',
+      custom_formula: sampling.custom_formula ?? '',
+      description: sampling.description ?? '',
+    })
+    setShowForm(true)
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Planes de muestreo</h1>
-        <Button
-          onClick={() => {
-            resetForm();
-            setEditingPlan(null);
-            setShowForm(true);
-          }}
-        >
-          Nuevo plan
-        </Button>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Muestreo por control de calidad</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          El backend F045 ancla cada regla de muestreo a un control concreto.
+        </p>
       </div>
 
-      {isLoading ? (
-        <div className="text-center py-8 text-gray-500">Cargando...</div>
+      <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <Input
+            label="ID del control"
+            value={controlDraft}
+            onChange={(event) => setControlDraft(event.target.value)}
+            placeholder="UUID del control seleccionado"
+          />
+          <Button
+            variant="secondary"
+            onClick={() => setSearchParams(controlDraft.trim() ? { control_id: controlDraft.trim() } : {})}
+          >
+            Cargar control
+          </Button>
+          {controlId && canCreate && <Button onClick={openCreate}>Nueva regla</Button>}
+        </div>
+      </div>
+
+      {!controlId ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Seleccione un control. Sin <code>control_id</code> no se realiza ninguna petición.
+        </div>
+      ) : list.isLoading ? (
+        <div className="py-8 text-center text-gray-500">Cargando muestreo del control…</div>
       ) : (
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+          {error && <div role="alert" className="border-b border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unidad</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fijo</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Porcentaje</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mín</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Máx</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Método</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                <th className="px-4 py-3 text-left text-xs uppercase text-slate-500">Tipo</th>
+                <th className="px-4 py-3 text-left text-xs uppercase text-slate-500">Cantidad fija</th>
+                <th className="px-4 py-3 text-left text-xs uppercase text-slate-500">Porcentaje</th>
+                <th className="px-4 py-3 text-left text-xs uppercase text-slate-500">Mínimo</th>
+                <th className="px-4 py-3 text-left text-xs uppercase text-slate-500">Descripción</th>
+                <th className="px-4 py-3 text-left text-xs uppercase text-slate-500">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
-              {plans?.map((plan) => (
-                <tr key={plan.sampling_id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{plan.code}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{plan.name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700 capitalize">{plan.sampling_type}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{plan.sample_unit || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{plan.fixed_quantity || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{plan.percentage || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{plan.minimum || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{plan.maximum || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700 capitalize">{plan.selection_method}</td>
-                  <td className="px-4 py-3 text-sm">
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      plan.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {plan.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <Button
-                      variant="secondary"
-                      size="small"
-                      onClick={() => handleEdit(plan)}
-                    >
-                      Editar
-                    </Button>
-                  </td>
+            <tbody className="divide-y divide-slate-100">
+              {list.data?.map((sampling) => (
+                <tr key={sampling.id}>
+                  <td className="px-4 py-3 text-sm font-medium text-slate-900">{sampling.sampling_type}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{sampling.fixed_count ?? '—'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{sampling.percentage ?? '—'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{sampling.minimum_count ?? '—'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{sampling.description ?? '—'}</td>
+                  <td className="px-4 py-3"><Button size="small" variant="secondary" onClick={() => openEdit(sampling)}>Editar</Button></td>
                 </tr>
               ))}
-              {(!plans || plans.length === 0) && (
-                <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
-                    No hay planes de muestreo configurados
-                  </td>
-                </tr>
+              {list.data?.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">Este control no tiene reglas de muestreo.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       )}
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                {editingPlan ? 'Editar plan de muestreo' : 'Nuevo plan de muestreo'}
-              </h2>
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Código</label>
-                    <Input
-                      label=""
-                      value={formData.code}
-                      onChange={(e) => handleChange('code', e.target.value)}
-                      placeholder="Ej: SMP-001"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                    <Input
-                      label=""
-                      value={formData.name}
-                      onChange={(e) => handleChange('name', e.target.value)}
-                      placeholder="Nombre del plan"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-                    <Input
-                      label=""
-                      value={formData.description}
-                      onChange={(e) => handleChange('description', e.target.value)}
-                      placeholder="Descripción opcional"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de muestreo</label>
-                    <select
-                      value={formData.sampling_type}
-                      onChange={(e) => handleChange('sampling_type', e.target.value)}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                    >
-                      <option value="random">Aleatorio</option>
-                      <option value="systematic">Sistemático</option>
-                      <option value="stratified">Estratificado</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Unidad</label>
-                    <select
-                      value={formData.unit_id}
-                      onChange={(e) => handleChange('unit_id', e.target.value)}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                    >
-                      <option value="">Seleccionar unidad</option>
-                      {units?.map((unit) => (
-                        <option key={unit.unit_id} value={unit.unit_id}>{unit.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Método de muestreo</label>
-                    <select
-                      value={formData.sampling_method}
-                      onChange={(e) => handleChange('sampling_method', e.target.value)}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                    >
-                      <option value="fixed">Fijo</option>
-                      <option value="percentage">Porcentaje</option>
-                      <option value="min_max">Mín-Máx</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tamaño fijo</label>
-                    <Input label=""
-                      value={formData.fixed_sample_size}
-                      onChange={(e) => handleChange('fixed_sample_size', e.target.value)}
-                      placeholder="Ej: 50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Porcentaje (%)</label>
-                    <Input label=""
-                      value={formData.sampling_percentage}
-                      onChange={(e) => handleChange('sampling_percentage', e.target.value)}
-                      placeholder="Ej: 10"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mínimo</label>
-                    <Input label=""
-                      value={formData.min_sample_size}
-                      onChange={(e) => handleChange('min_sample_size', e.target.value)}
-                      placeholder="Ej: 5"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Máximo</label>
-                    <Input label=""
-                      value={formData.max_sample_size}
-                      onChange={(e) => handleChange('max_sample_size', e.target.value)}
-                      placeholder="Ej: 100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => handleChange('status', e.target.value as 'active' | 'inactive')}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                    >
-                      <option value="active">Activo</option>
-                      <option value="inactive">Inactivo</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <QualitySampleSizePreviewPanel formData={formData} />
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                {editingPlan && (
-                  <Button variant="danger" onClick={handleDelete}>
-                    Eliminar
-                  </Button>
-                )}
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setShowForm(false);
-                    setEditingPlan(null);
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button onClick={handleSubmit}>
-                  {editingPlan ? 'Guardar cambios' : 'Crear plan'}
-                </Button>
-              </div>
+      {showForm && controlId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <form
+            className="w-full max-w-2xl space-y-4 rounded-lg bg-white p-6 shadow-xl"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const payload = toPayload(form)
+              void (editing ? update.mutate(payload) : create.mutate(payload))
+            }}
+          >
+            <h2 className="text-lg font-semibold">{editing ? 'Editar muestreo' : 'Nuevo muestreo'}</h2>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input label="Tipo de muestreo" value={form.sampling_type} onChange={(event) => setForm({ ...form, sampling_type: event.target.value })} />
+              <Input label="Cantidad fija" type="number" value={form.fixed_count} onChange={(event) => setForm({ ...form, fixed_count: event.target.value })} />
+              <Input label="Porcentaje" type="number" value={form.percentage} onChange={(event) => setForm({ ...form, percentage: event.target.value })} />
+              <Input label="Cantidad mínima" type="number" value={form.minimum_count} onChange={(event) => setForm({ ...form, minimum_count: event.target.value })} />
+              <Input label="Nivel de empaque" value={form.package_level} onChange={(event) => setForm({ ...form, package_level: event.target.value })} />
+              <Input label="Nivel de lote" value={form.lot_level} onChange={(event) => setForm({ ...form, lot_level: event.target.value })} />
+              <Input label="Fórmula personalizada" value={form.custom_formula} onChange={(event) => setForm({ ...form, custom_formula: event.target.value })} />
+              <Input label="Descripción" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
             </div>
-          </div>
+            {(create.error || update.error || remove.error) && <div role="alert" className="text-sm text-red-700">{create.error ?? update.error ?? remove.error}</div>}
+            <div className="flex justify-end gap-3">
+              {editing && <Button type="button" variant="danger" onClick={() => { if (window.confirm('¿Eliminar esta regla de muestreo?')) void remove.mutate(editing.id) }}>Eliminar</Button>}
+              <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>Cancelar</Button>
+              <Button type="submit">{editing ? 'Guardar' : 'Crear'}</Button>
+            </div>
+          </form>
         </div>
       )}
     </div>
-  );
-};
+  )
+}
 
-export default QualitySamplingPlansPage;
-
-export { QualitySamplingPlansPage }
+export default QualitySamplingPlansPage

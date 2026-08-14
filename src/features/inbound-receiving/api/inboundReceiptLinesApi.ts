@@ -9,6 +9,8 @@ import type {
 } from '../types/inbound-receiving'
 
 const BASE = '/logistics/inbound-receipts'
+// El detalle de una línea es un recurso propio: `/inbound-receipt-lines/{id}`.
+const LINES_BASE = '/logistics/inbound-receipt-lines'
 
 async function withCsrf(): Promise<Record<string, string>> {
   const token = await getCsrfToken()
@@ -30,36 +32,36 @@ export const inboundReceiptLinesApi = {
     return apiRequest({ path: `${BASE}/${receiptId}/received-lines?page=${page}&page_size=${pageSize}`, method: 'GET' })
   },
 
-  async getLine(receiptId: string, lineId: string): Promise<InboundReceivedLine> {
-    return apiRequest({ path: `${BASE}/${receiptId}/lines/${lineId}`, method: 'GET' })
+  async getLine(_receiptId: string, lineId: string): Promise<InboundReceivedLine> {
+    return apiRequest({ path: `${LINES_BASE}/${lineId}`, method: 'GET' })
   },
 
-  async getComparison(receiptId: string, lineId: string): Promise<InboundLineComparison> {
-    return apiRequest({ path: `${BASE}/${receiptId}/lines/${lineId}/comparison`, method: 'GET' })
+  async getComparison(_receiptId: string, lineId: string): Promise<InboundLineComparison> {
+    return apiRequest({ path: `${LINES_BASE}/${lineId}/comparison`, method: 'GET' })
   },
 
-  async getIdentifiers(receiptId: string, lineId: string): Promise<{ barcodes: string[]; packaging: string[] }> {
-    return apiRequest({ path: `${BASE}/${receiptId}/lines/${lineId}/identifiers`, method: 'GET' })
+  async getIdentifiers(_receiptId: string, lineId: string): Promise<{ barcodes: string[]; packaging: string[] }> {
+    return apiRequest({ path: `${LINES_BASE}/${lineId}/identifiers`, method: 'GET' })
   },
 
-  async getHistory(receiptId: string, lineId: string): Promise<InboundReceiptHistoryEvent[]> {
-    return apiRequest({ path: `${BASE}/${receiptId}/lines/${lineId}/history`, method: 'GET' })
+  async getHistory(_receiptId: string, lineId: string): Promise<InboundReceiptHistoryEvent[]> {
+    return apiRequest({ path: `${LINES_BASE}/${lineId}/history`, method: 'GET' })
   },
 
-  async applyQuantity(receiptId: string, data: ApplyQuantityRequest): Promise<InboundReceivedLine> {
+  async applyQuantity(_receiptId: string, data: ApplyQuantityRequest): Promise<InboundReceivedLine> {
     const csrf = await withCsrf()
     return apiRequest({
-      path: `${BASE}/${receiptId}/apply-quantity`,
+      path: `${LINES_BASE}/${data.line_id}/apply-quantity`,
       method: 'POST',
       headers: { ...csrf, 'Idempotency-Key': generateKey() },
       body: data,
     })
   },
 
-  async validateLine(receiptId: string, lineId: string): Promise<InboundReceivedLine> {
+  async validateLine(_receiptId: string, lineId: string): Promise<InboundReceivedLine> {
     const csrf = await withCsrf()
     return apiRequest({
-      path: `${BASE}/${receiptId}/lines/${lineId}/validate`,
+      path: `${LINES_BASE}/${lineId}/validate`,
       method: 'POST',
       headers: { ...csrf, 'Idempotency-Key': generateKey() },
       body: {},

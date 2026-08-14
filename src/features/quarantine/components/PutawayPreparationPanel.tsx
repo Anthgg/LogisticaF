@@ -39,7 +39,7 @@ export function PutawayPreparationPanel({
     error,
   } = useQuery<PutawayPreparation>(
     ['putaway-preparation', allocationId],
-    `/logistics/quality-availability/putaway-preparation/${allocationId}`,
+    `/logistics/quality-quarantine-cases/${allocationId}/putaway-preparation`,
     undefined,
     { enabled: canView },
   )

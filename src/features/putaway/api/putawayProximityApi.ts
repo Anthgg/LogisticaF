@@ -54,9 +54,4 @@ export const putawayProximityApi = {
   async getTravelCost(fromLocationId: string, toLocationId: string): Promise<{ walk_time_seconds: number }> {
     return apiRequest({ path: `${BASE}/travel-cost${buildQuery({ from: fromLocationId, to: toLocationId })}`, method: 'GET' })
   },
-
-  // Legacy helper
-  async getNearbyDestinations(_warehouseId: string, _sourceLocationId: string, _limit?: number): Promise<unknown[]> {
-    return []
-  },
 }

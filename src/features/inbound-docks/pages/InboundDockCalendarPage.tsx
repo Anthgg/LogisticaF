@@ -19,7 +19,10 @@ export function InboundDockCalendarPage() {
   const { hasPermission } = useLogisticsPermissions()
   const canView = hasPermission(LOGISTICS_PERMISSIONS.inboundDocks.view)
   const [filter, setFilter] = useState<QueueFilter>({})
-  const warehouseId = filter.warehouse_id ?? context.warehouse_id ?? options.warehouses[0]?.id ?? ''
+  // Sin almacen resuelto el valor es null, nunca cadena vacia: un ''
+  // acabaria viajando como `?warehouse_id=` a un parametro UUID.
+  const warehouseId =
+    filter.warehouse_id ?? context.warehouse_id ?? options.warehouses[0]?.id ?? null
   const summary = useInboundDockQueueSummary(warehouseId)
   const assignments = useInboundDockAssignments(
     { warehouse_id: warehouseId, date_from: filter.date_from, date_to: filter.date_to },

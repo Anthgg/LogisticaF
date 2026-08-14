@@ -36,7 +36,7 @@ const FORBIDDEN_ROUTES: Record<string, string> = {
  */
 const ALLOWED = [
   '/src/test/api-contract-guard.test.ts',
-  '/src/features/inbound-docks/test/warehouse-scoped-queries.test.ts',
+  '/src/features/inbound-docks/test/supported-query-scope.test.ts',
   '/src/features/putaway/api/putawayMobileApi.ts',
 ]
 

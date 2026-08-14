@@ -41,6 +41,9 @@ function generateKey(): string {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
+/** Base real del recurso de exportaciones de operaciones de muelle. */
+export const DOCK_OPERATION_EXPORTS_BASE = '/logistics/dock-operation-exports'
+
 export const dockAssignmentsApi = {
   async list(query: {
     warehouse_id?: string
@@ -280,7 +283,7 @@ export const dockAssignmentsApi = {
     const csrf = await withCsrf()
     const headers = withIdempotency(csrf, idempotencyKey)
     return apiRequest<DockOperationExportJob>({
-      path: '/logistics/dock-operation-exports',
+      path: DOCK_OPERATION_EXPORTS_BASE,
       method: 'POST',
       headers,
       body: data,
@@ -289,7 +292,7 @@ export const dockAssignmentsApi = {
 
   async getExportJob(jobId: string): Promise<DockOperationExportJob> {
     return apiRequest<DockOperationExportJob>({
-      path: `/logistics/dock-operation-exports/${jobId}`,
+      path: `${DOCK_OPERATION_EXPORTS_BASE}/${jobId}`,
       method: 'GET',
     })
   },

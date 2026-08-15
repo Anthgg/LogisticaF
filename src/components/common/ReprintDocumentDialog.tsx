@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { ResourceDialog } from './ResourceDialog'
 import { TextareaField } from './FormControls'
-import type { DocumentItem } from '../../types/logistics-documents'
+import type { DocumentSummary } from '../../types/logistics-documents'
 
 interface ReprintDocumentDialogProps {
   isOpen: boolean
-  document: DocumentItem | null
+  document: DocumentSummary | null
   isSubmitting?: boolean
   onClose: () => void
   onSubmit: (reason: string) => Promise<void>
@@ -23,6 +23,10 @@ export function ReprintDocumentDialog({
 
   if (!document) return null
 
+  // El backend publica `document_code` y admite null mientras el documento no
+  // se emite. La confirmación por código sigue siendo una guarda local.
+  const documentCode = document.document_code ?? 'Sin código'
+
   const handleConfirm = async () => {
     if (reason.trim().length < 5) {
       setError('Debes especificar un motivo válido de al menos 5 caracteres.')
@@ -36,7 +40,7 @@ export function ReprintDocumentDialog({
   return (
     <ResourceDialog
       isOpen={isOpen}
-      title={`Solicitar reimpresión — ${document.code}`}
+      title={`Solicitar reimpresión — ${documentCode}`}
       submitLabel="Reimprimir documento"
       isSubmitting={isSubmitting}
       onClose={onClose}
@@ -46,7 +50,7 @@ export function ReprintDocumentDialog({
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
           <p className="font-bold">Aviso de seguridad y auditoría:</p>
           <p className="mt-1 leading-relaxed">
-            La reimpresión conservará el mismo código oficial (<code className="font-mono">{document.code}</code>), pero
+            La reimpresión conservará el mismo código oficial (<code className="font-mono">{documentCode}</code>), pero
             incrementará el contador de copias. El PDF resultante incluirá la marca de agua permanente de reimpresión.
           </p>
         </div>

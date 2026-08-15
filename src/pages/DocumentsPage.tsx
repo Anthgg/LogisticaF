@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { documentsApi } from '../api/documents-api'
+import { documentsApi, documentTotalPages } from '../api/documents-api'
 import { Alert } from '../components/common/Alert'
 import { Button } from '../components/common/Button'
 import { CancelDocumentDialog } from '../components/common/CancelDocumentDialog'
@@ -18,8 +18,12 @@ import { StatusBadge } from '../components/common/StatusBadge'
 import { useSensitiveOperationGuard } from '../features/continuous-auth/hooks/useSensitiveOperationGuard'
 import { useLogisticsAccess } from '../features/logistics-me/hooks/useLogisticsAccess'
 import { LOGISTICS_PERMISSIONS } from '../features/logistics-permissions/logistics-permissions-map'
-import type { DocumentItem } from '../types/logistics-documents'
-import type { PaginatedResponse } from '../types/logistics-resources'
+import type {
+  DocumentExportFormat,
+  DocumentExportJob,
+  DocumentListResponse,
+  DocumentSummary,
+} from '../types/logistics-documents'
 import { getErrorMessage } from '../utils/errors'
 import { getPdfErrorMessage } from '../api/pdf/pdf-client'
 
@@ -34,12 +38,11 @@ export function DocumentsPage() {
   const canCancel = access.hasPermission(LOGISTICS_PERMISSIONS.documents.cancel)
   const canReprint = access.hasPermission(LOGISTICS_PERMISSIONS.documents.reprint)
 
-  const [data, setData] = useState<PaginatedResponse<DocumentItem>>({
+  const [data, setData] = useState<DocumentListResponse>({
     items: [],
     page: 1,
     page_size: 20,
     total: 0,
-    total_pages: 0,
   })
 
   // Filtros
@@ -54,12 +57,12 @@ export function DocumentsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Estados de Diálogos y Paneles
-  const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null)
+  const [previewDoc, setPreviewDoc] = useState<DocumentSummary | null>(null)
   const [detailDocId, setDetailDocId] = useState<string | null>(null)
-  const [reprintDoc, setReprintDoc] = useState<DocumentItem | null>(null)
-  const [cancelDoc, setCancelDoc] = useState<DocumentItem | null>(null)
+  const [reprintDoc, setReprintDoc] = useState<DocumentSummary | null>(null)
+  const [cancelDoc, setCancelDoc] = useState<DocumentSummary | null>(null)
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
-  const [activeExportJobId, setActiveExportJobId] = useState<string | null>(null)
+  const [activeExportJob, setActiveExportJob] = useState<DocumentExportJob | null>(null)
   const [isExportJobsPanelOpen, setIsExportJobsPanelOpen] = useState(false)
 
   const [isLoading, setIsLoading] = useState(true)
@@ -74,7 +77,7 @@ export function DocumentsPage() {
         await documentsApi.list({
           page,
           page_size: 20,
-          search,
+          search: search || undefined,
           status: statusFilter || undefined,
           family: familyFilter || undefined,
           date_from: dateFrom || undefined,
@@ -94,20 +97,16 @@ export function DocumentsPage() {
   }, [load])
 
   const handlePdfDownload = useCallback(
-    async (documentItem: DocumentItem, original = false) => {
+    async (documentItem: DocumentSummary, original = false) => {
       setError(null)
       try {
         if (original) {
           const executed = await guardSensitiveAction(async () => {
-            await documentsApi.downloadPdf(
-              documentItem.id,
-              documentItem.code,
-              true,
-            )
+            await documentsApi.downloadPdf(documentItem.id, true)
           })
           if (!executed) return
         } else {
-          await documentsApi.downloadPdf(documentItem.id, documentItem.code)
+          await documentsApi.downloadPdf(documentItem.id)
         }
       } catch (caught: unknown) {
         setError(getPdfErrorMessage(caught))
@@ -143,12 +142,12 @@ export function DocumentsPage() {
     }
   }
 
-  const handleCancelSubmit = async (reason: string, confirmCode: string) => {
+  const handleCancelSubmit = async (reason: string) => {
     if (!cancelDoc) return
     setIsSaving(true)
     try {
       const executed = await guardSensitiveAction(async () => {
-        await documentsApi.cancel(cancelDoc.id, { reason, confirm_code: confirmCode })
+        await documentsApi.cancel(cancelDoc.id, { reason })
       })
       if (!executed) return
       setCancelDoc(null)
@@ -161,7 +160,7 @@ export function DocumentsPage() {
   }
 
   const handleCreateExport = async (options: {
-    exportFormat: 'ZIP' | 'COMBINED_PDF'
+    exportFormat: DocumentExportFormat
     includeManifest: boolean
     includeChecksums: boolean
     reason?: string
@@ -177,7 +176,7 @@ export function DocumentsPage() {
       })
       setIsExportDialogOpen(false)
       setSelectedIds(new Set())
-      setActiveExportJobId(job.id)
+      setActiveExportJob(job)
       setIsExportJobsPanelOpen(true)
     } catch (err: unknown) {
       setError(getErrorMessage(err))
@@ -187,7 +186,7 @@ export function DocumentsPage() {
   }
 
   // Definición de Columnas de la Tabla
-  const columns = useMemo<TableColumn<DocumentItem>[]>(
+  const columns = useMemo<TableColumn<DocumentSummary>[]>(
     () => [
       {
         key: 'select',
@@ -202,7 +201,7 @@ export function DocumentsPage() {
         ),
       },
       {
-        key: 'code',
+        key: 'document_code',
         label: 'Código',
         render: (row) => (
           <button
@@ -210,7 +209,7 @@ export function DocumentsPage() {
             className="text-left hover:underline text-blue-700 font-mono font-bold text-xs"
             onClick={() => setDetailDocId(row.id)}
           >
-            {row.code}
+            {row.document_code ?? 'Sin código'}
           </button>
         ),
       },
@@ -220,7 +219,7 @@ export function DocumentsPage() {
         render: (row) => (
           <div className="table-primary">
             <strong>{row.title}</strong>
-            <small>{row.family}</small>
+            <small>{row.document_type_name}</small>
           </div>
         ),
       },
@@ -232,9 +231,12 @@ export function DocumentsPage() {
         ),
       },
       {
-        key: 'created_at',
-        label: 'Fecha',
-        render: (row) => new Date(row.created_at).toLocaleDateString('es-PE'),
+        key: 'issued_at',
+        label: 'Fecha de emisión',
+        render: (row) =>
+          row.issued_at
+            ? new Date(row.issued_at).toLocaleDateString('es-PE')
+            : 'Sin emitir',
       },
       {
         key: 'actions',
@@ -242,12 +244,12 @@ export function DocumentsPage() {
         align: 'right',
         render: (row) => (
           <div className="table-actions">
-            {row.capabilities.can_preview && canPreview && (
+            {row.can_preview && canPreview && (
               <Button size="small" variant="ghost" onClick={() => setPreviewDoc(row)}>
                 Ver
               </Button>
             )}
-            {row.capabilities.can_download && canDownload && (
+            {row.can_download && canDownload && (
               <Button
                 size="small"
                 variant="ghost"
@@ -256,12 +258,12 @@ export function DocumentsPage() {
                 Descargar
               </Button>
             )}
-            {row.capabilities.can_reprint && canReprint && (
+            {row.can_reprint && canReprint && (
               <Button size="small" variant="ghost" onClick={() => setReprintDoc(row)}>
                 Reimprimir
               </Button>
             )}
-            {row.capabilities.can_cancel && row.status !== 'CANCELLED' && canCancel && (
+            {row.can_cancel && row.status !== 'CANCELLED' && canCancel && (
               <Button size="small" variant="ghost" onClick={() => setCancelDoc(row)}>
                 Anular
               </Button>
@@ -281,7 +283,7 @@ export function DocumentsPage() {
         description="Emisión, verificación, reimpresión y archivo auditable de comprobantes oficiales."
         actions={
           <div className="flex items-center gap-2">
-            {activeExportJobId && (
+            {activeExportJob && (
               <Button variant="secondary" onClick={() => setIsExportJobsPanelOpen(true)}>
                 Ver exportación activa
               </Button>
@@ -391,7 +393,7 @@ export function DocumentsPage() {
 
         <Pagination
           page={data.page}
-          totalPages={data.total_pages}
+          totalPages={documentTotalPages(data.total, data.page_size)}
           total={data.total}
           onPageChange={setPage}
         />
@@ -401,7 +403,7 @@ export function DocumentsPage() {
       <SecurePdfViewer
         isOpen={Boolean(previewDoc)}
         title={previewDoc?.title || ''}
-        code={previewDoc?.code || ''}
+        code={previewDoc?.document_code ?? ''}
         isVoided={previewDoc?.status === 'CANCELLED'}
         reprintCount={previewDoc?.reprint_count}
         fetchBlobUrl={async () => {
@@ -453,7 +455,7 @@ export function DocumentsPage() {
 
       <DocumentExportJobsPanel
         isOpen={isExportJobsPanelOpen}
-        activeJobId={activeExportJobId}
+        job={activeExportJob}
         onClose={() => setIsExportJobsPanelOpen(false)}
       />
     </div>

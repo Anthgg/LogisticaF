@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ResourceDialog } from './ResourceDialog'
+import type { DocumentExportFormat } from '../../types/logistics-documents'
 
 interface ExportDocumentsDialogProps {
   isOpen: boolean
@@ -7,7 +8,7 @@ interface ExportDocumentsDialogProps {
   isSubmitting?: boolean
   onClose: () => void
   onSubmit: (options: {
-    exportFormat: 'ZIP' | 'COMBINED_PDF'
+    exportFormat: DocumentExportFormat
     includeManifest: boolean
     includeChecksums: boolean
     reason?: string
@@ -21,7 +22,7 @@ export function ExportDocumentsDialog({
   onClose,
   onSubmit,
 }: ExportDocumentsDialogProps) {
-  const [exportFormat, setExportFormat] = useState<'ZIP' | 'COMBINED_PDF'>('ZIP')
+  const [exportFormat, setExportFormat] = useState<DocumentExportFormat>('ZIP')
   const [includeManifest, setIncludeManifest] = useState(true)
   const [includeChecksums, setIncludeChecksums] = useState(true)
   const [reason] = useState('')
@@ -57,7 +58,7 @@ export function ExportDocumentsDialog({
 
         <div className="field">
           <label className="field__label">Formato de entrega</label>
-          <div className="grid grid-cols-2 gap-2 mt-1">
+          <div className="grid grid-cols-3 gap-2 mt-1">
             <button
               type="button"
               className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-colors ${
@@ -75,15 +76,29 @@ export function ExportDocumentsDialog({
             <button
               type="button"
               className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-colors ${
-                exportFormat === 'COMBINED_PDF'
+                exportFormat === 'MERGED_PDF'
                   ? 'border-blue-700 bg-blue-50 text-blue-900 font-bold'
                   : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
               }`}
-              onClick={() => setExportFormat('COMBINED_PDF')}
+              onClick={() => setExportFormat('MERGED_PDF')}
             >
               <span>PDF Unificado</span>
               <small className="text-[10px] text-slate-500 font-normal mt-1">
                 Combina todas las páginas en un único tomo PDF.
+              </small>
+            </button>
+            <button
+              type="button"
+              className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-colors ${
+                exportFormat === 'MANIFEST_ONLY'
+                  ? 'border-blue-700 bg-blue-50 text-blue-900 font-bold'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+              onClick={() => setExportFormat('MANIFEST_ONLY')}
+            >
+              <span>Solo manifiesto</span>
+              <small className="text-[10px] text-slate-500 font-normal mt-1">
+                Entrega el inventario del paquete sin los PDF.
               </small>
             </button>
           </div>

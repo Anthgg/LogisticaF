@@ -1,110 +1,147 @@
-export type DocumentStatus =
-  | 'DRAFT'
-  | 'READY_TO_ISSUE'
-  | 'ISSUED'
-  | 'CANCELLED'
-  | 'REPLACED'
-  | 'FAILED'
-  | 'ARCHIVED'
+/**
+ * Contrato runtime del módulo Documents.
+ *
+ * Estos tipos reproducen los DTO que el backend publica de verdad
+ * (`DocumentSummaryResponse`, `DocumentDetailResponse`, `DocumentHistoryResponse`
+ * del OpenAPI de `d55e7f2b64ea6d8ce278fb626046c12d3dab1286`). No se añade ningún
+ * campo que el backend no emita: un campo inventado aquí no falla en typecheck,
+ * falla en producción cuando alguien lo lee.
+ *
+ * En particular las capacidades viajan PLANAS (`can_preview`, `can_download`…),
+ * no dentro de un objeto `capabilities`.
+ */
 
-export type DocumentFamily =
-  | 'REMISSION_GUIDE'
-  | 'MANIFEST'
-  | 'PROOF_OF_DELIVERY'
-  | 'INCIDENT_ACT'
-  | 'OTHER'
+/** Estados conocidos, para poblar filtros. El DTO no cierra la unión. */
+export const DOCUMENT_STATUSES = [
+  'DRAFT',
+  'READY_TO_ISSUE',
+  'ISSUED',
+  'CANCELLED',
+  'REPLACED',
+  'FAILED',
+  'ARCHIVED',
+] as const
 
-export type ExportJobStatus =
-  | 'QUEUED'
-  | 'VALIDATING'
-  | 'PROCESSING'
-  | 'READY'
-  | 'FAILED'
-  | 'EXPIRED'
-  | 'CANCELLED'
+export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number]
 
-export interface DocumentCapabilities {
+/** Formatos que acepta `DocumentExportCreate.export_format`. */
+export type DocumentExportFormat = 'ZIP' | 'MERGED_PDF' | 'MANIFEST_ONLY'
+
+/** `issued_by_summary`: el backend solo publica el identificador del emisor. */
+export interface DocumentActorSummary {
+  id: string
+}
+
+export interface DocumentBranchSummary {
+  id: string
+  name: string
+}
+
+export interface DocumentWarehouseSummary {
+  id: string
+  name: string
+}
+
+export interface DocumentSourceReference {
+  resource_type: string
+  resource_id: string | null
+}
+
+/**
+ * `DocumentSummaryResponse`. `status` y `family` son `string` en el contrato:
+ * cerrarlos en una unión haría que una familia nueva del backend rompiera la
+ * página en vez de mostrarse.
+ */
+export interface DocumentSummary {
+  id: string
+  document_code: string | null
+  document_type_code: string
+  document_type_name: string
+  family: string
+  title: string
+  status: string
+  issued_at: string | null
+  issued_by_summary: DocumentActorSummary | null
+  branch_summary: DocumentBranchSummary
+  warehouse_summary: DocumentWarehouseSummary | null
+  source_reference: DocumentSourceReference
+  reprint_count: number
+  print_request_count: number
+  sensitivity: string
   can_preview: boolean
   can_download: boolean
   can_print: boolean
   can_reprint: boolean
   can_cancel: boolean
   can_view_history: boolean
-  can_view_original_cancelled?: boolean
+  authoritative_artifact_status: string | null
 }
 
-export interface DocumentItem {
-  id: string
-  code: string
-  title: string
-  family: DocumentFamily
-  document_type: string
-  status: DocumentStatus
-  organization_id: string | null
-  branch_id: string | null
-  branch_name?: string | null
-  warehouse_id: string | null
-  warehouse_name?: string | null
-  issued_at: string | null
-  issued_by_user_id: string | null
-  issued_by_user_name?: string | null
-  operation_type: string | null
-  operation_id: string | null
-  reprint_count: number
-  hash_sha256: string
-  capabilities: DocumentCapabilities
+/** `DocumentDetailResponse` = summary + trazabilidad del recurso de origen. */
+export interface DocumentDetail extends DocumentSummary {
+  lifecycle_status: string
+  source_resource_type: string
+  source_resource_id: string | null
+  source_operation_id: string | null
+  current_snapshot_id: string | null
   created_at: string
   updated_at: string
 }
 
-export interface DocumentDetail extends DocumentItem {
-  template_version: string
-  snapshot_version: string
-  content_snapshot: Record<string, unknown>
-  cancellation_reason?: string | null
-  cancelled_at?: string | null
-  cancelled_by_user_name?: string | null
+/** `DocumentListResponse`: sin `total_pages`; se deriva en el frontend. */
+export interface DocumentListResponse {
+  items: DocumentSummary[]
+  total: number
+  page: number
+  page_size: number
 }
 
+/** `DocumentHistoryEntryResponse`: sin `id` ni `description`. */
 export interface DocumentHistoryEntry {
-  id: string
-  document_id: string
   event_type: string
-  description: string
-  user_name: string | null
-  created_at: string
-  copy_number?: number | null
+  timestamp: string
+  actor_user_id?: string | null
+  actor_name?: string | null
   reason?: string | null
-  correlation_id?: string | null
+  copy_number?: number | null
+  details?: Record<string, unknown> | null
 }
 
+export interface DocumentHistoryResponse {
+  document_id: string
+  history: DocumentHistoryEntry[]
+}
+
+/** `DocumentReprintRequest`. */
 export interface DocumentReprintRequest {
   reason: string
+  requested_copy_format?: string
 }
 
+/** `DocumentCancelRequest`: solo `reason`. La confirmación es local. */
 export interface DocumentCancelRequest {
   reason: string
-  confirm_code: string
 }
 
+/** `DocumentExportCreate`. */
 export interface DocumentExportRequest {
   document_ids: string[]
-  export_format: 'ZIP' | 'COMBINED_PDF'
+  export_format: DocumentExportFormat
   include_manifest: boolean
   include_checksums: boolean
   reason?: string
 }
 
+/** `DocumentExportJobResponse`. */
 export interface DocumentExportJob {
-  id: string
-  status: ExportJobStatus
-  total_documents: number
-  processed_documents: number
-  export_format: string
-  created_at: string
+  job_id: string
+  status: string
+  total_items: number
+  processed_items: number
+  failed_items: number
   expires_at: string
-  download_url?: string | null
-  error_message?: string | null
+  polling_url: string
+  download_url: string | null
 }
 
 export interface DocumentTalonario {
@@ -125,24 +162,4 @@ export interface DocumentTalonario {
   cancelled_count: number
   available_count: number
   created_at: string
-}
-
-export interface DocumentPackageEntry {
-  document_id: string
-  code: string
-  document_type: string
-  family: DocumentFamily
-  status: DocumentStatus
-  is_required: boolean
-  is_present: boolean
-}
-
-export interface DocumentPackage {
-  operation_type: string
-  operation_id: string
-  status: 'COMPLETE' | 'INCOMPLETE' | 'NO_DOCUMENTS'
-  required_count: number
-  present_count: number
-  missing_count: number
-  documents: DocumentPackageEntry[]
 }

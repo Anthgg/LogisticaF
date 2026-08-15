@@ -11,9 +11,17 @@ interface DocumentDetailPanelProps {
   onClose: () => void
   onPreview?: (doc: DocumentDetail) => void
   onDownload?: (doc: DocumentDetail) => void
+  /** Solo se pasa cuando quien abre el panel tiene el permiso sensible. */
   onDownloadOriginal?: (doc: DocumentDetail) => void
   onReprint?: (doc: DocumentDetail) => void
   onCancel?: (doc: DocumentDetail) => void
+}
+
+/** Título legible de un evento. El backend no publica `description`. */
+function historyLabel(entry: DocumentHistoryEntry): string {
+  return entry.copy_number === null || entry.copy_number === undefined
+    ? entry.event_type
+    : `${entry.event_type} · copia ${entry.copy_number}`
 }
 
 export function DocumentDetailPanel({
@@ -27,6 +35,7 @@ export function DocumentDetailPanel({
 }: DocumentDetailPanelProps) {
   const [doc, setDoc] = useState<DocumentDetail | null>(null)
   const [history, setHistory] = useState<DocumentHistoryEntry[]>([])
+  const [historyError, setHistoryError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -34,18 +43,35 @@ export function DocumentDetailPanel({
     if (!documentId) {
       setDoc(null)
       setHistory([])
+      setHistoryError(null)
       return undefined
     }
 
     let active = true
     setIsLoading(true)
     setError(null)
+    setHistoryError(null)
 
-    Promise.all([documentsApi.get(documentId), documentsApi.getHistory(documentId)])
-      .then(([detailData, historyData]) => {
+    // El historial se pide aparte: si falla, el detalle sigue siendo válido y
+    // el panel debe decir que el historial no cargó, no fingir que está vacío.
+    documentsApi
+      .get(documentId)
+      .then(async (detailData) => {
         if (!active) return
         setDoc(detailData)
-        setHistory(historyData)
+        if (!detailData.can_view_history) {
+          setHistory([])
+          return
+        }
+        try {
+          const historyData = await documentsApi.getHistory(documentId)
+          if (active) setHistory(historyData)
+        } catch (err: unknown) {
+          if (active) {
+            setHistory([])
+            setHistoryError(getErrorMessage(err))
+          }
+        }
       })
       .catch((err: unknown) => {
         if (active) setError(getErrorMessage(err))
@@ -75,7 +101,9 @@ export function DocumentDetailPanel({
             <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">
               Detalle documental inmutable
             </p>
-            <h2 className="text-lg font-bold text-slate-900">{doc?.code || 'Cargando…'}</h2>
+            <h2 className="text-lg font-bold text-slate-900">
+              {doc ? doc.document_code ?? 'Sin código' : 'Cargando…'}
+            </h2>
           </div>
           <button
             type="button"
@@ -92,7 +120,7 @@ export function DocumentDetailPanel({
           {isLoading && (
             <div className="loading-panel">
               <span className="spinner" />
-              <p>Consultando snapshot del documento…</p>
+              <p>Consultando el documento…</p>
             </div>
           )}
 
@@ -102,33 +130,37 @@ export function DocumentDetailPanel({
             <>
               {/* Acciones principales */}
               <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-4">
-                {doc.capabilities.can_preview && onPreview && (
+                {doc.can_preview && onPreview && (
                   <Button size="small" variant="secondary" onClick={() => onPreview(doc)}>
                     Ver vista previa
                   </Button>
                 )}
-                {doc.capabilities.can_download && onDownload && (
+                {doc.can_download && onDownload && (
                   <Button size="small" variant="ghost" onClick={() => onDownload(doc)}>
                     Descargar PDF
                   </Button>
                 )}
-                {doc.status === 'CANCELLED' &&
-                  doc.capabilities.can_view_original_cancelled &&
-                  onDownloadOriginal && (
-                    <Button
-                      size="small"
-                      variant="ghost"
-                      onClick={() => onDownloadOriginal(doc)}
-                    >
-                      Descargar original cancelado
-                    </Button>
-                  )}
-                {doc.capabilities.can_reprint && onReprint && (
+                {/*
+                  El contrato no publica una capacidad para el original anulado.
+                  La condición observable es que el documento esté anulado; el
+                  permiso sensible lo aporta quien pasa el callback y la
+                  autorización final la conserva el backend.
+                */}
+                {doc.status === 'CANCELLED' && onDownloadOriginal && (
+                  <Button
+                    size="small"
+                    variant="ghost"
+                    onClick={() => onDownloadOriginal(doc)}
+                  >
+                    Descargar original cancelado
+                  </Button>
+                )}
+                {doc.can_reprint && onReprint && (
                   <Button size="small" variant="ghost" onClick={() => onReprint(doc)}>
                     Reimprimir
                   </Button>
                 )}
-                {doc.capabilities.can_cancel && doc.status !== 'CANCELLED' && onCancel && (
+                {doc.can_cancel && doc.status !== 'CANCELLED' && onCancel && (
                   <Button size="small" variant="ghost" onClick={() => onCancel(doc)}>
                     Anular
                   </Button>
@@ -146,6 +178,10 @@ export function DocumentDetailPanel({
                     <dd>{doc.title}</dd>
                   </div>
                   <div>
+                    <dt>Tipo</dt>
+                    <dd>{doc.document_type_name}</dd>
+                  </div>
+                  <div>
                     <dt>Familia</dt>
                     <dd>{doc.family}</dd>
                   </div>
@@ -156,36 +192,43 @@ export function DocumentDetailPanel({
                     </dd>
                   </div>
                   <div>
+                    <dt>Ciclo de vida</dt>
+                    <dd>{doc.lifecycle_status}</dd>
+                  </div>
+                  <div>
+                    <dt>Sede</dt>
+                    <dd>{doc.branch_summary.name}</dd>
+                  </div>
+                  <div>
+                    <dt>Almacén</dt>
+                    <dd>{doc.warehouse_summary?.name ?? 'No aplica'}</dd>
+                  </div>
+                  <div>
                     <dt>Emisor</dt>
-                    <dd>{doc.issued_by_user_name || 'Sistema'}</dd>
+                    <dd>{doc.issued_by_summary ? doc.issued_by_summary.id : 'Sistema'}</dd>
                   </div>
                   <div>
                     <dt>Fecha de emisión</dt>
-                    <dd>{formatDateTime(doc.issued_at)}</dd>
+                    <dd>{doc.issued_at ? formatDateTime(doc.issued_at) : 'Sin emitir'}</dd>
                   </div>
                   <div>
                     <dt>Reimpresiones</dt>
                     <dd>{doc.reprint_count}</dd>
                   </div>
                   <div>
-                    <dt>Integridad (SHA-256)</dt>
+                    <dt>Sensibilidad</dt>
+                    <dd>{doc.sensitivity}</dd>
+                  </div>
+                  <div>
+                    <dt>Origen</dt>
                     <dd>
-                      <code className="font-mono text-[10px] text-slate-600 bg-slate-100 px-1 py-0.5 rounded">
-                        {doc.hash_sha256.slice(0, 16)}…
-                      </code>
+                      {doc.source_reference.resource_type}
+                      {doc.source_reference.resource_id
+                        ? ` · ${doc.source_reference.resource_id}`
+                        : ''}
                     </dd>
                   </div>
                 </dl>
-              </section>
-
-              {/* Snapshot inmutable de contenido */}
-              <section className="space-y-2">
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Snapshot inmutable al emitir
-                </h3>
-                <pre className="max-h-48 overflow-auto rounded-xl border border-slate-200 bg-slate-900 p-3 font-mono text-[10px] text-blue-300">
-                  {JSON.stringify(doc.content_snapshot, null, 2)}
-                </pre>
               </section>
 
               {/* Línea temporal de eventos */}
@@ -193,21 +236,28 @@ export function DocumentDetailPanel({
                 <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                   Historial de auditoría
                 </h3>
+                {historyError && (
+                  <p className="text-xs font-semibold text-rose-600">
+                    No se pudo cargar el historial: {historyError}
+                  </p>
+                )}
+                {!historyError && history.length === 0 && (
+                  <p className="text-xs text-slate-500">Sin eventos registrados.</p>
+                )}
                 <ul className="timeline">
-                  {history.map((entry) => (
-                    <li key={entry.id}>
+                  {history.map((entry, index) => (
+                    <li key={`${entry.event_type}-${entry.timestamp}-${index}`}>
                       <span className="timeline__dot" />
                       <div>
                         <div className="timeline__title">
                           <strong className="text-xs font-bold text-slate-900">
-                            {entry.event_type}
+                            {historyLabel(entry)}
                           </strong>
-                          <time>{formatDateTime(entry.created_at)}</time>
+                          <time>{formatDateTime(entry.timestamp)}</time>
                         </div>
-                        <p className="text-xs text-slate-600">{entry.description}</p>
-                        {entry.user_name && (
+                        {entry.actor_name && (
                           <small className="text-[10px] text-slate-400">
-                            Por: {entry.user_name}
+                            Por: {entry.actor_name}
                           </small>
                         )}
                         {entry.reason && (

@@ -11,6 +11,7 @@ interface DocumentDetailPanelProps {
   onClose: () => void
   onPreview?: (doc: DocumentDetail) => void
   onDownload?: (doc: DocumentDetail) => void
+  onDownloadOriginal?: (doc: DocumentDetail) => void
   onReprint?: (doc: DocumentDetail) => void
   onCancel?: (doc: DocumentDetail) => void
 }
@@ -20,6 +21,7 @@ export function DocumentDetailPanel({
   onClose,
   onPreview,
   onDownload,
+  onDownloadOriginal,
   onReprint,
   onCancel,
 }: DocumentDetailPanelProps) {
@@ -110,6 +112,17 @@ export function DocumentDetailPanel({
                     Descargar PDF
                   </Button>
                 )}
+                {doc.status === 'CANCELLED' &&
+                  doc.capabilities.can_view_original_cancelled &&
+                  onDownloadOriginal && (
+                    <Button
+                      size="small"
+                      variant="ghost"
+                      onClick={() => onDownloadOriginal(doc)}
+                    >
+                      Descargar original cancelado
+                    </Button>
+                  )}
                 {doc.capabilities.can_reprint && onReprint && (
                   <Button size="small" variant="ghost" onClick={() => onReprint(doc)}>
                     Reimprimir

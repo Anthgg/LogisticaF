@@ -40,6 +40,7 @@ export const LOGISTICS_PERMISSIONS = {
   },
   documents: {
     read: 'logistics.documents.read',
+    preview: 'logistics.documents.preview',
     download: 'logistics.documents.download',
     export: 'logistics.documents.export',
     cancel: 'logistics.documents.cancel',
@@ -47,6 +48,11 @@ export const LOGISTICS_PERMISSIONS = {
   },
   audit: {
     read: 'logistics.audit.read',
+    readSensitive: 'logistics.audit.read_sensitive',
+  },
+  receptionAppointments: {
+    preview: 'logistics.reception_appointments.preview',
+    download: 'logistics.reception_appointments.download',
   },
   companySettings: {
     read: 'logistics.company_profile.read',

@@ -1,5 +1,7 @@
 import { apiRequest, getCsrfToken } from './api-client'
 import { API_ROOT } from './config'
+import { pdfApi } from './pdf/pdf-endpoints'
+import { createPdfObjectUrl, downloadPdfFile } from './pdf/pdf-client'
 import type {
   DocumentCancelRequest,
   DocumentDetail,
@@ -51,34 +53,17 @@ export const documentsApi = {
   },
 
   async getPreviewBlobUrl(id: string): Promise<string> {
-    const response = await fetch(`${API_ROOT}/logistics/documents/${id}/preview`, {
-      method: 'GET',
-      credentials: 'include',
-    })
-    if (!response.ok) {
-      throw new Error(`Error ${response.status} al cargar vista previa del documento`)
-    }
-    const blob = await response.blob()
-    return URL.createObjectURL(blob)
+    return createPdfObjectUrl(await pdfApi.documents.preview(id))
   },
 
-  async downloadPdf(id: string, code: string): Promise<void> {
-    const response = await fetch(`${API_ROOT}/logistics/documents/${id}/pdf`, {
-      method: 'GET',
-      credentials: 'include',
-    })
-    if (!response.ok) {
-      throw new Error(`Error ${response.status} al descargar PDF`)
-    }
-    const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${code}.pdf`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+  async downloadPdf(
+    id: string,
+    _code: string,
+    original = false,
+    stepUpProofId?: string,
+  ): Promise<void> {
+    const pdf = await pdfApi.documents.download(id, original, { stepUpProofId })
+    downloadPdfFile(pdf)
   },
 
   async registerPrintIntent(id: string): Promise<void> {
@@ -170,22 +155,7 @@ export const documentsApi = {
   },
 
   async downloadTalonarioPdf(talonarioId: string): Promise<void> {
-    const response = await fetch(`${API_ROOT}/logistics/document-talonarios/${talonarioId}/pdf`, {
-      method: 'GET',
-      credentials: 'include',
-    })
-    if (!response.ok) {
-      throw new Error(`Error ${response.status} al descargar talonario`)
-    }
-    const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `talonario_${talonarioId.slice(0, 8)}.pdf`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    downloadPdfFile(await pdfApi.documentSeries.downloadTalonario(talonarioId))
   },
 
   async getPackage(_operationType: string, _operationId: string): Promise<DocumentPackage> {

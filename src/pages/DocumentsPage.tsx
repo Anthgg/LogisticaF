@@ -21,12 +21,15 @@ import { LOGISTICS_PERMISSIONS } from '../features/logistics-permissions/logisti
 import type { DocumentItem } from '../types/logistics-documents'
 import type { PaginatedResponse } from '../types/logistics-resources'
 import { getErrorMessage } from '../utils/errors'
+import { getPdfErrorMessage } from '../api/pdf/pdf-client'
 
 export function DocumentsPage() {
   const access = useLogisticsAccess()
   const { guardSensitiveAction } = useSensitiveOperationGuard()
 
   const canDownload = access.hasPermission(LOGISTICS_PERMISSIONS.documents.download)
+  const canPreview = access.hasPermission(LOGISTICS_PERMISSIONS.documents.preview)
+  const canReadSensitive = access.hasPermission(LOGISTICS_PERMISSIONS.audit.readSensitive)
   const canExport = access.hasPermission(LOGISTICS_PERMISSIONS.documents.export)
   const canCancel = access.hasPermission(LOGISTICS_PERMISSIONS.documents.cancel)
   const canReprint = access.hasPermission(LOGISTICS_PERMISSIONS.documents.reprint)
@@ -89,6 +92,29 @@ export function DocumentsPage() {
     const timer = window.setTimeout(() => void load(), 250)
     return () => window.clearTimeout(timer)
   }, [load])
+
+  const handlePdfDownload = useCallback(
+    async (documentItem: DocumentItem, original = false) => {
+      setError(null)
+      try {
+        if (original) {
+          const executed = await guardSensitiveAction(async () => {
+            await documentsApi.downloadPdf(
+              documentItem.id,
+              documentItem.code,
+              true,
+            )
+          })
+          if (!executed) return
+        } else {
+          await documentsApi.downloadPdf(documentItem.id, documentItem.code)
+        }
+      } catch (caught: unknown) {
+        setError(getPdfErrorMessage(caught))
+      }
+    },
+    [guardSensitiveAction],
+  )
 
   const toggleSelectOne = (id: string) => {
     setSelectedIds((prev) => {
@@ -216,7 +242,7 @@ export function DocumentsPage() {
         align: 'right',
         render: (row) => (
           <div className="table-actions">
-            {row.capabilities.can_preview && (
+            {row.capabilities.can_preview && canPreview && (
               <Button size="small" variant="ghost" onClick={() => setPreviewDoc(row)}>
                 Ver
               </Button>
@@ -225,7 +251,7 @@ export function DocumentsPage() {
               <Button
                 size="small"
                 variant="ghost"
-                onClick={() => void documentsApi.downloadPdf(row.id, row.code)}
+                onClick={() => void handlePdfDownload(row)}
               >
                 Descargar
               </Button>
@@ -244,7 +270,7 @@ export function DocumentsPage() {
         ),
       },
     ],
-    [canCancel, canDownload, canReprint, selectedIds],
+    [canCancel, canDownload, canPreview, canReprint, handlePdfDownload, selectedIds],
   )
 
   return (
@@ -384,7 +410,7 @@ export function DocumentsPage() {
         }}
         onClose={() => setPreviewDoc(null)}
         onDownload={() => {
-          if (previewDoc) void documentsApi.downloadPdf(previewDoc.id, previewDoc.code)
+          if (previewDoc) void handlePdfDownload(previewDoc)
         }}
         onPrint={() => {
           if (previewDoc) void documentsApi.registerPrintIntent(previewDoc.id)
@@ -394,8 +420,9 @@ export function DocumentsPage() {
       <DocumentDetailPanel
         documentId={detailDocId}
         onClose={() => setDetailDocId(null)}
-        onPreview={(doc) => setPreviewDoc(doc)}
-        onDownload={(doc) => void documentsApi.downloadPdf(doc.id, doc.code)}
+        onPreview={canPreview ? (doc) => setPreviewDoc(doc) : undefined}
+        onDownload={canDownload ? (doc) => void handlePdfDownload(doc) : undefined}
+        onDownloadOriginal={canReadSensitive ? (doc) => void handlePdfDownload(doc, true) : undefined}
         onReprint={(doc) => setReprintDoc(doc)}
         onCancel={(doc) => setCancelDoc(doc)}
       />

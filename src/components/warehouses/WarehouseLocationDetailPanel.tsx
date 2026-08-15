@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { warehousesApi } from '../../api/warehouses-modeling-api'
 import { Button } from '../../components/common/Button'
 import { LogisticsIcon } from '../../components/common/LogisticsIcon'
-import { SecurePdfViewer } from '../../components/common/SecurePdfViewer'
 import { StatusBadge } from '../../components/common/StatusBadge'
+import { getPdfErrorMessage } from '../../api/pdf/pdf-client'
 import type { WarehouseLocationTreeNode } from '../../types/warehouse-modeling'
 
 interface WarehouseLocationDetailPanelProps {
@@ -15,7 +15,19 @@ export function WarehouseLocationDetailPanel({
   locationNode,
   onBlockLocation,
 }: WarehouseLocationDetailPanelProps) {
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [isDownloadingLabel, setIsDownloadingLabel] = useState(false)
+
+  const handleDownloadLabel = async () => {
+    if (!locationNode || isDownloadingLabel) return
+    setIsDownloadingLabel(true)
+    try {
+      await warehousesApi.downloadLocationLabelPdf(locationNode.id, 'A6')
+    } catch (error: unknown) {
+      alert(getPdfErrorMessage(error))
+    } finally {
+      setIsDownloadingLabel(false)
+    }
+  }
 
   if (!locationNode) {
     return (
@@ -67,8 +79,14 @@ export function WarehouseLocationDetailPanel({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100 justify-end">
-          <Button size="small" variant="secondary" onClick={() => setIsPreviewOpen(true)}>
-            Ver Etiqueta QR PDF
+          <Button
+            size="small"
+            variant="secondary"
+            isLoading={isDownloadingLabel}
+            loadingLabel="Descargando…"
+            onClick={() => void handleDownloadLabel()}
+          >
+            Descargar Etiqueta QR PDF (A6)
           </Button>
 
           {locationNode.status === 'ACTIVE' && (
@@ -79,13 +97,6 @@ export function WarehouseLocationDetailPanel({
         </div>
       </div>
 
-      <SecurePdfViewer
-        isOpen={isPreviewOpen}
-        title={`Etiqueta QR Oficial — ${locationNode.full_code}`}
-        code={locationNode.full_code}
-        fetchBlobUrl={async () => warehousesApi.downloadLocationLabelPdfBlobUrl(locationNode.id)}
-        onClose={() => setIsPreviewOpen(false)}
-      />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { apiRequest, getCsrfToken } from './api-client'
-import { API_ROOT } from './config'
+import { pdfApi } from './pdf/pdf-endpoints'
+import { downloadPdfFile } from './pdf/pdf-client'
 import type { ListQuery, PaginatedResponse } from '../types/logistics-resources'
 import type {
   GenerationPreviewResponse,
@@ -179,14 +180,12 @@ export const warehousesApi = {
     })
   },
 
-  async downloadLocationLabelPdfBlobUrl(locationId: string, _format = 'A6'): Promise<string> {
-    const response = await fetch(`${API_ROOT}/logistics/warehouses/locations/${locationId}/label.pdf`, {
-      method: 'GET',
-      credentials: 'include',
-    })
-    if (!response.ok) throw new Error('Error al descargar PDF de etiqueta')
-    const blob = await response.blob()
-    return URL.createObjectURL(blob)
+  async downloadLocationLabelPdf(locationId: string, format = 'A6'): Promise<void> {
+    downloadPdfFile(await pdfApi.warehouseLabels.downloadOne(locationId, format))
+  },
+
+  async downloadLocationLabelsPdf(locationIds: string[], format = 'A6'): Promise<void> {
+    downloadPdfFile(await pdfApi.warehouseLabels.downloadBatch(locationIds, format))
   },
 
   // Historial

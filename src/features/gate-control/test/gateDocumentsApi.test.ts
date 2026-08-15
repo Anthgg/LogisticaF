@@ -12,7 +12,7 @@ function jsonResponse(body: unknown, status = 200, headers: Record<string, strin
 }
 
 function pdfResponse(): Response {
-  return new Response(new Blob(['%PDF-1.4'], { type: 'application/pdf' }), {
+  return new Response('%PDF-1.4', {
     status: 200,
     headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'attachment' },
   })
@@ -32,6 +32,7 @@ const cpvDoc = {
 describe('gateDocumentsApi', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
     fetchMock = vi.fn<FetchFn>()
     vi.stubGlobal('fetch', fetchMock)
   })
@@ -89,13 +90,13 @@ describe('gateDocumentsApi', () => {
     it('fetches /document/pdf with credentials include', async () => {
       fetchMock.mockResolvedValueOnce(pdfResponse())
 
-      const blob = await gateDocumentsApi.downloadDocument('ci-1')
+      const pdf = await gateDocumentsApi.downloadDocument('ci-1')
 
-      expect(blob).toBeInstanceOf(Blob)
+      expect(pdf.blob).toBeInstanceOf(Blob)
       const call = fetchMock.mock.calls[0]
       expect(String(call[0])).toContain('/logistics/gate-check-ins/ci-1/document/pdf')
       expect(call[1]!.credentials).toBe('include')
-      expect((call[1]!.headers as Record<string, string>).Accept).toBe('application/pdf')
+      expect(new Headers(call[1]!.headers).get('Accept')).toBe('application/pdf')
     })
 
     it('does not send CSRF on GET download', async () => {
@@ -103,8 +104,8 @@ describe('gateDocumentsApi', () => {
 
       await gateDocumentsApi.downloadDocument('ci-1')
 
-      const headers = fetchMock.mock.calls[0][1]!.headers as Record<string, string>
-      expect(headers['X-CSRF-Token']).toBeUndefined()
+      const headers = new Headers(fetchMock.mock.calls[0][1]!.headers)
+      expect(headers.get('X-CSRF-Token')).toBeNull()
     })
 
     it('rejects JSON response disguised as PDF', async () => {
@@ -113,14 +114,16 @@ describe('gateDocumentsApi', () => {
       )
 
       await expect(gateDocumentsApi.downloadDocument('ci-1')).rejects.toThrow(
-        /Se esperaba application\/pdf/,
+        /no devolvió un documento PDF válido/,
       )
     })
 
     it('throws on non-ok status', async () => {
       fetchMock.mockResolvedValueOnce(new Response(null, { status: 403 }))
 
-      await expect(gateDocumentsApi.downloadDocument('ci-1')).rejects.toThrow(/403/)
+      await expect(gateDocumentsApi.downloadDocument('ci-1')).rejects.toMatchObject({
+        status: 403,
+      })
     })
   })
 })

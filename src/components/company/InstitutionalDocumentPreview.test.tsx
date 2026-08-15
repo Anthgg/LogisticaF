@@ -9,6 +9,7 @@ vi.mock('../../api/company-profile-api', () => ({
     listAddresses: vi.fn(),
     listSigners: vi.fn(),
     getPreviewDocumentBlobUrl: vi.fn(),
+    downloadPreviewDocument: vi.fn(),
   },
 }))
 
@@ -82,6 +83,7 @@ describe('InstitutionalDocumentPreview Component (Fase 021)', () => {
       total_pages: 1,
     })
     mockedApi.getPreviewDocumentBlobUrl.mockResolvedValue('blob:http://localhost:3000/mock-pdf-url')
+    mockedApi.downloadPreviewDocument.mockResolvedValue(undefined)
   })
 
   it('renderiza título, explicaciones de resolución automática y carga sedes y firmantes', async () => {
@@ -217,5 +219,30 @@ describe('InstitutionalDocumentPreview Component (Fase 021)', () => {
         }),
       })
     })
+  })
+
+  it('usa el endpoint de download en una acción separada del preview', async () => {
+    const user = userEvent.setup()
+    render(<InstitutionalDocumentPreview />)
+
+    await waitFor(() => expect(mockedApi.listAddresses).toHaveBeenCalled())
+    await user.click(
+      screen.getByRole('button', { name: /Generar vista previa en PDF/i }),
+    )
+    await waitFor(() => {
+      expect(mockedApi.getPreviewDocumentBlobUrl).toHaveBeenCalledOnce()
+    })
+
+    await user.click(screen.getByRole('button', { name: /^Descargar PDF$/i }))
+
+    await waitFor(() => {
+      expect(mockedApi.downloadPreviewDocument).toHaveBeenCalledWith({
+        doc_type_code: 'AREC',
+        branch_id: null,
+        signer_id: null,
+        custom_data: {},
+      })
+    })
+    expect(mockedApi.getPreviewDocumentBlobUrl).toHaveBeenCalledOnce()
   })
 })

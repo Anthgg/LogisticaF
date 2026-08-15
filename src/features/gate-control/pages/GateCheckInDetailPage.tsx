@@ -25,6 +25,7 @@ import { Modal } from '../components/ui'
 import { GateVerificationWorkspace } from '../components/GateVerificationWorkspace'
 import { GateEvidenceGallery } from '../components/GateEvidenceGallery'
 import { GateControlDocumentPanel } from '../components/GateControlDocumentPanel'
+import { ReceptionAppointmentPdfActions } from '../components/ReceptionAppointmentPdfActions'
 import { GateCheckInHistoryTimeline } from '../components/GateCheckInHistoryTimeline'
 import { DockAssignmentPreparationPanel } from '../components/DockAssignmentPreparationPanel'
 import { GateCheckInIntegrityPanel } from '../components/GateCheckInIntegrityPanel'
@@ -197,17 +198,23 @@ export function GateCheckInDetailPage() {
         <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs">
           <h2 className="text-sm font-bold text-slate-800">Resumen</h2>
           {detail.appointment && (
-            <dl className="mt-2 grid grid-cols-2 gap-1 md:grid-cols-3">
-              <dt className="text-slate-500">CIT:</dt><dd className="font-mono">{detail.appointment.cit_code}</dd>
-              <dt className="text-slate-500">Proveedor:</dt><dd>{detail.appointment.supplier_name ?? '—'}</dd>
-              <dt className="text-slate-500">Transportista:</dt><dd>{detail.appointment.carrier_name ?? '—'}</dd>
-              <dt className="text-slate-500">Placa esperada:</dt><dd className="font-mono">{detail.appointment.vehicle_plate ?? '—'}</dd>
-              <dt className="text-slate-500">Conductor:</dt><dd>{detail.appointment.driver_name_redacted ?? '—'}</dd>
-              <dt className="text-slate-500">Precinto esperado:</dt><dd className="font-mono">{detail.appointment.seal_number_expected ?? '—'}</dd>
-              <dt className="text-slate-500">Pallets:</dt><dd>{detail.appointment.pallets ?? '—'}</dd>
-              <dt className="text-slate-500">Bultos:</dt><dd>{detail.appointment.packages ?? '—'}</dd>
-              <dt className="text-slate-500">Peso:</dt><dd>{detail.appointment.weight ?? '—'}</dd>
-            </dl>
+            <>
+              <dl className="mt-2 grid grid-cols-2 gap-1 md:grid-cols-3">
+                <dt className="text-slate-500">CIT:</dt><dd className="font-mono">{detail.appointment.cit_code}</dd>
+                <dt className="text-slate-500">Proveedor:</dt><dd>{detail.appointment.supplier_name ?? '—'}</dd>
+                <dt className="text-slate-500">Transportista:</dt><dd>{detail.appointment.carrier_name ?? '—'}</dd>
+                <dt className="text-slate-500">Placa esperada:</dt><dd className="font-mono">{detail.appointment.vehicle_plate ?? '—'}</dd>
+                <dt className="text-slate-500">Conductor:</dt><dd>{detail.appointment.driver_name_redacted ?? '—'}</dd>
+                <dt className="text-slate-500">Precinto esperado:</dt><dd className="font-mono">{detail.appointment.seal_number_expected ?? '—'}</dd>
+                <dt className="text-slate-500">Pallets:</dt><dd>{detail.appointment.pallets ?? '—'}</dd>
+                <dt className="text-slate-500">Bultos:</dt><dd>{detail.appointment.packages ?? '—'}</dd>
+                <dt className="text-slate-500">Peso:</dt><dd>{detail.appointment.weight ?? '—'}</dd>
+              </dl>
+              <ReceptionAppointmentPdfActions
+                appointmentId={detail.appointment.id}
+                citCode={detail.appointment.cit_code}
+              />
+            </>
           )}
           {detail.seal_inspection && (
             <div className="mt-2 border-t border-slate-100 pt-2">

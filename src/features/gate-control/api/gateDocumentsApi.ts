@@ -1,5 +1,6 @@
 import { apiRequest, getCsrfToken } from '../../../api/api-client'
-import { API_ROOT } from '../../../api/config'
+import { pdfApi } from '../../../api/pdf/pdf-endpoints'
+import type { PdfFile } from '../../../api/pdf/pdf-client'
 import type { GateCpvDocumentResponse, GatePreviewResponse, GateControlPackage } from '../types/gate-control'
 
 const BASE = '/logistics/gate-check-ins'
@@ -37,20 +38,8 @@ export const gateDocumentsApi = {
     })
   },
 
-  async downloadDocument(checkInId: string): Promise<Blob> {
-    const res = await fetch(`${API_ROOT}${BASE}/${checkInId}/document/pdf`, {
-      method: 'GET',
-      credentials: 'include',
-      headers: { Accept: 'application/pdf' },
-    })
-    if (!res.ok) throw new Error(`Error ${res.status} al descargar el acta CPV.`)
-    const contentType = res.headers.get('content-type') ?? ''
-    if (!contentType.includes('application/pdf')) {
-      let detail = ''
-      try { const body = await res.json(); detail = body?.message ?? JSON.stringify(body) } catch { /* ignore */ }
-      throw new Error(`Se esperaba application/pdf pero se recibió ${contentType}. ${detail}`.trim())
-    }
-    return res.blob()
+  async downloadDocument(checkInId: string): Promise<PdfFile> {
+    return pdfApi.gateControl.downloadCpv(checkInId)
   },
 
   // ── Paquete documental ────────────────────────────────────────────────────────
@@ -77,6 +66,6 @@ export const gateDocumentsApi = {
   },
 
   async downloadPackage(checkInId: string, _packageId: string): Promise<Blob> {
-    return this.downloadDocument(checkInId)
+    return (await this.downloadDocument(checkInId)).blob
   },
 }

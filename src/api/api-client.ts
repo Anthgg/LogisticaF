@@ -96,6 +96,30 @@ function extractError(payload: unknown, status: number): ApiRequestError {
     })
   }
 
+  if (isRecord(payload) && typeof payload.detail === 'string') {
+    return new ApiRequestError(
+      status >= 500
+        ? 'Ocurrió un error interno. Inténtalo más tarde.'
+        : payload.detail,
+      {
+        code: status === 401 ? 'SESSION_REQUIRED' : `HTTP_${status}`,
+        status,
+      },
+    )
+  }
+
+  if (isRecord(payload) && typeof payload.message === 'string') {
+    return new ApiRequestError(
+      status >= 500
+        ? 'Ocurrió un error interno. Inténtalo más tarde.'
+        : payload.message,
+      {
+        code: status === 401 ? 'SESSION_REQUIRED' : `HTTP_${status}`,
+        status,
+      },
+    )
+  }
+
   const message =
     status === 500
       ? 'Ocurrió un error interno. Inténtalo más tarde.'
@@ -174,6 +198,33 @@ async function readPayload(response: Response): Promise<unknown> {
   }
 }
 
+async function readErrorPayload(response: Response): Promise<unknown> {
+  const text = await response.text()
+  if (!text) return undefined
+
+  const contentType = response.headers.get('content-type') ?? ''
+  if (!contentType.includes('application/json')) {
+    if (contentType.includes('text/plain') && response.status < 500) {
+      const safeText = Array.from(text)
+        .map((character) => {
+          const codePoint = character.codePointAt(0) ?? 0
+          return codePoint > 31 && codePoint !== 127 ? character : ' '
+        })
+        .join('')
+      return {
+        detail: safeText.trim().slice(0, 500),
+      }
+    }
+    return undefined
+  }
+
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    return undefined
+  }
+}
+
 function buildUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
 
@@ -239,8 +290,10 @@ export function refreshAuthentication(): Promise<unknown> {
   return refreshPromise
 }
 
-export async function apiRequest<T>(
+export async function apiResponseRequest<T>(
   options: ApiRequestOptions,
+  parseSuccess: (response: Response) => Promise<T>,
+  accept = 'application/json',
 ): Promise<T> {
   const method = options.method ?? 'GET'
   const shouldUseCsrf =
@@ -264,7 +317,7 @@ export async function apiRequest<T>(
 
     try {
       const headers = new Headers(options.headers)
-      headers.set('Accept', 'application/json')
+      headers.set('Accept', accept)
       headers.set('Accept-Language', getRequestLanguage())
 
       const isMultipart = options.body instanceof FormData
@@ -292,9 +345,9 @@ export async function apiRequest<T>(
         signal: controller.signal,
       })
       recordContentLanguage(response.headers.get('Content-Language'))
-      const payload = await readPayload(response)
 
       if (!response.ok) {
+        const payload = await readErrorPayload(response)
         const apiError = extractError(payload, response.status)
 
         const isCsrfError =
@@ -342,7 +395,7 @@ export async function apiRequest<T>(
         throw apiError
       }
 
-      return payload as T
+      return parseSuccess(response)
     } catch (error: unknown) {
       if (error instanceof ApiRequestError) {
         throw error
@@ -369,4 +422,13 @@ export async function apiRequest<T>(
   }
 
   return execute({ csrf: false, authentication: false, rateLimit: false })
+}
+
+export async function apiRequest<T>(
+  options: ApiRequestOptions,
+): Promise<T> {
+  return apiResponseRequest(
+    options,
+    async (response) => (await readPayload(response)) as T,
+  )
 }

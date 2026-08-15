@@ -5,7 +5,7 @@ import process from 'node:process'
 
 import { describe, expect, it } from 'vitest'
 
-const EXPECTED_BACKEND_SHA = '5486774aff0d100fa5210107bd4397944267e7a0'
+const EXPECTED_BACKEND_SHA = 'd55e7f2b64ea6d8ce278fb626046c12d3dab1286'
 const manifestPath = resolve(process.cwd(), 'scripts', 'contracts', 'backend-routes.phase045.json')
 const auditPath = resolve(process.cwd(), 'scripts', 'audit-api-contract.mjs')
 
@@ -42,5 +42,7 @@ describe('phase 045 API contract gate', () => {
       expect(report.summary[status] ?? 0, status).toBe(0)
     }
     expect(report.summary.MATCH).toBe(report.total)
-  }, 20_000)
+    // El auditor tarda ~2 s aislado, pero aquí compite con el resto de la suite
+    // en paralelo. El margen es para la contención, no para la comprobación.
+  }, 120_000)
 })

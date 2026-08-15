@@ -8,7 +8,7 @@
  * Uso:
  *   node scripts/generate-contract-manifest.mjs \
  *     --url http://127.0.0.1:8000/openapi.json \
- *     --backend-sha 5486774aff0d100fa5210107bd4397944267e7a0
+ *     --backend-sha d55e7f2b64ea6d8ce278fb626046c12d3dab1286
  *
  * Regenerar cuando el backend cambie el contrato oficialmente: generar,
  * revisar el diff, actualizar consumidores y ejecutar el validador.

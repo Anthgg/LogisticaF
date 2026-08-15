@@ -4,6 +4,7 @@ import type { GateCheckInCapabilities, GateCpvDocumentResponse } from '../types/
 import { useSensitiveActionGuard } from '../../logistics-permissions/hooks/useSensitiveActionGuard'
 import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
 import { EmptyState, StatusPill } from './ui'
+import { downloadPdfFile, getPdfErrorMessage } from '../../../api/pdf/pdf-client'
 
 export function GateControlDocumentPanel({
   checkInId, cpvDocument, capabilities, onChanged,
@@ -16,6 +17,7 @@ export function GateControlDocumentPanel({
   const [submitting, setSubmitting] = useState<string | null>(null)
 
   const issueGuard = useSensitiveActionGuard({ permission: LOGISTICS_PERMISSIONS.gateControl.issueCPV })
+  const downloadGuard = useSensitiveActionGuard({ permission: LOGISTICS_PERMISSIONS.gateControl.downloadCPV })
 
   const handlePreview = async () => {
     setSubmitting('preview')
@@ -29,16 +31,12 @@ export function GateControlDocumentPanel({
     } catch (e) { alert(e instanceof Error ? e.message : 'No se pudo emitir.') } finally { setSubmitting(null) }
   }
   const handleDownload = async () => {
-    let url: string | null = null
+    setSubmitting('download')
     try {
-      const blob = await gateDocumentsApi.downloadDocument(checkInId)
-      url = URL.createObjectURL(blob)
-      const a = globalThis.document.createElement('a')
-      a.href = url; a.download = `${cpvDocument?.document_code ?? checkInId}.pdf`
-      globalThis.document.body.appendChild(a); a.click(); globalThis.document.body.removeChild(a)
-    } catch (e) { alert(e instanceof Error ? e.message : 'No se pudo descargar.') } finally {
-      if (url) URL.revokeObjectURL(url)
-    }
+      await downloadGuard.run(async () => {
+        downloadPdfFile(await gateDocumentsApi.downloadDocument(checkInId))
+      })
+    } catch (e) { alert(getPdfErrorMessage(e)) } finally { setSubmitting(null) }
   }
 
   if (!cpvDocument) {
@@ -84,7 +82,7 @@ export function GateControlDocumentPanel({
             <button type="button" disabled={submitting === 'issue' || issueGuard.isBlocked} onClick={() => void handleIssue()} className="rounded-lg bg-[#1F4E6D] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#173a55] disabled:opacity-50">{submitting === 'issue' ? 'Emitiendo…' : 'Emitir CPV'}</button>
           )}
           {capabilities?.can_download_CPV && (
-            <button type="button" onClick={() => void handleDownload()} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Descargar acta</button>
+            <button type="button" disabled={submitting === 'download' || downloadGuard.isBlocked} onClick={() => void handleDownload()} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{submitting === 'download' ? 'Descargando…' : 'Descargar acta'}</button>
           )}
         </div>
       </div>

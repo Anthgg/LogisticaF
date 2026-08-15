@@ -311,8 +311,11 @@ export function PurchaseRequisitionDetailPage() {
 
         {activeTab === 'document' && (
           <PurchaseRequisitionDocumentPanel
+            requisitionId={requisition.id}
             requisitionCode={requisition.requisition_code}
             activeRevisionNumber={requisition.active_revision_number}
+            canPreview={capabilities?.can_preview}
+            canDownload={capabilities?.can_download}
           />
         )}
 

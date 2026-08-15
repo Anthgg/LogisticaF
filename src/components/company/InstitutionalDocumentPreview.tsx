@@ -11,7 +11,7 @@ import {
   type InstitutionalPreviewRequest,
   type OrganizationAddress,
 } from '../../types/company-profile'
-import { getErrorMessage } from '../../utils/errors'
+import { getPdfErrorMessage } from '../../api/pdf/pdf-client'
 
 export function InstitutionalDocumentPreview() {
   const [selectedDocCode, setSelectedDocCode] = useState<string>('AREC')
@@ -462,10 +462,19 @@ export function InstitutionalDocumentPreview() {
             const req = buildPreviewRequest()
             return await companyProfileApi.getPreviewDocumentBlobUrl(req)
           } catch (err: unknown) {
-            const msg = getErrorMessage(err)
+            const msg = getPdfErrorMessage(err)
             setPreviewError(msg)
             throw new Error(msg)
           }
+        }}
+        onDownload={() => {
+          void companyProfileApi
+            .downloadPreviewDocument(buildPreviewRequest())
+            .catch((err: unknown) => {
+              const message = getPdfErrorMessage(err)
+              setPreviewError(message)
+              alert(message)
+            })
         }}
         onClose={() => setIsPreviewOpen(false)}
       />

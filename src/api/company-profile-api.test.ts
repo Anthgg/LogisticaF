@@ -1,169 +1,75 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getCsrfToken } from './api-client'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { companyProfileApi } from './company-profile-api'
+import { pdfApi } from './pdf/pdf-endpoints'
+import {
+  createPdfObjectUrl,
+  downloadPdfFile,
+} from './pdf/pdf-client'
 
-vi.mock('./api-client', () => ({
-  API_ROOT: '/api',
-  apiRequest: vi.fn(),
-  getCsrfToken: vi.fn(),
+vi.mock('./pdf/pdf-endpoints', () => ({
+  pdfApi: {
+    companyProfile: {
+      preview: vi.fn(),
+      download: vi.fn(),
+    },
+  },
 }))
 
-const mockedCsrf = vi.mocked(getCsrfToken)
+vi.mock('./pdf/pdf-client', () => ({
+  createPdfObjectUrl: vi.fn(() => 'blob:institutional-preview'),
+  downloadPdfFile: vi.fn(),
+}))
 
-describe('companyProfileApi - Vista Previa Institucional (Fase 021)', () => {
-  const originalFetch = globalThis.fetch
-  const originalCreateObjectURL = URL.createObjectURL
+const previewRequest = {
+  doc_type_code: 'AREC',
+  branch_id: null,
+  signer_id: null,
+  custom_data: {},
+}
+const pdf = {
+  blob: new Blob(['%PDF-1.7'], { type: 'application/pdf' }),
+  size: 8,
+  filename: 'acta-recepcion.pdf',
+  contentType: 'application/pdf',
+  contentDisposition: 'inline; filename="acta-recepcion.pdf"',
+  response: new Response(),
+}
 
+describe('companyProfileApi - Vista Previa Institucional', () => {
   beforeEach(() => {
-    mockedCsrf.mockReset()
-    mockedCsrf.mockResolvedValue('test-csrf-token-xyz')
-    globalThis.fetch = vi.fn()
-    URL.createObjectURL = vi.fn(() => 'blob:http://localhost:3000/mock-uuid-1234')
+    vi.clearAllMocks()
+    vi.mocked(pdfApi.companyProfile.preview).mockResolvedValue(pdf)
+    vi.mocked(pdfApi.companyProfile.download).mockResolvedValue(pdf)
   })
 
-  afterEach(() => {
-    globalThis.fetch = originalFetch
-    URL.createObjectURL = originalCreateObjectURL
+  it('delega el preview al cliente PDF centralizado', async () => {
+    await expect(
+      companyProfileApi.getPreviewDocumentBlob(previewRequest),
+    ).resolves.toBe(pdf.blob)
+    expect(pdfApi.companyProfile.preview).toHaveBeenCalledWith(previewRequest)
   })
 
-  it('envía solicitud POST con branch_id y signer_id como null cuando no se especifican', async () => {
-    const mockBuffer = new TextEncoder().encode('%PDF-1.4 mock content').buffer
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      headers: {
-        get: (header: string) => (header.toLowerCase() === 'content-type' ? 'application/pdf' : null),
-      },
-      arrayBuffer: vi.fn().mockResolvedValue(mockBuffer),
-    })
-    globalThis.fetch = mockFetch
-
-    const resultBlob = await companyProfileApi.getPreviewDocumentBlob({
-      doc_type_code: 'AREC',
-    })
-
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-    expect(mockFetch).toHaveBeenCalledWith('/api/logistics/company-profile/document-preview', {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/pdf',
-        'X-CSRF-Token': 'test-csrf-token-xyz',
-      },
-      body: JSON.stringify({
-        doc_type_code: 'AREC',
-        branch_id: null,
-        signer_id: null,
-        custom_data: {},
-      }),
-    })
-    expect(resultBlob).toBeInstanceOf(Blob)
-    expect(resultBlob.type).toBe('application/pdf')
+  it('crea el object URL únicamente después de recibir el PDF válido', async () => {
+    await expect(
+      companyProfileApi.getPreviewDocumentBlobUrl(previewRequest),
+    ).resolves.toBe('blob:institutional-preview')
+    expect(createPdfObjectUrl).toHaveBeenCalledWith(pdf)
   })
 
-  it('envía sede, firmante y custom_data explícitos cuando son proporcionados', async () => {
-    const mockBuffer = new TextEncoder().encode('%PDF-1.4 mock content').buffer
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      headers: {
-        get: (header: string) => (header.toLowerCase() === 'content-type' ? 'application/pdf' : null),
-      },
-      arrayBuffer: vi.fn().mockResolvedValue(mockBuffer),
-    })
-    globalThis.fetch = mockFetch
+  it('usa el contrato download separado y el filename del servidor', async () => {
+    await companyProfileApi.downloadPreviewDocument(previewRequest)
 
-    const resultBlob = await companyProfileApi.getPreviewDocumentBlob({
-      doc_type_code: 'GRR',
-      branch_id: 'branch-uuid-001',
-      signer_id: 'signer-uuid-002',
-      custom_data: { receiver_name: 'Acme Corp', weight_kg: 150.5 },
-    })
-
-    expect(mockFetch).toHaveBeenCalledWith('/api/logistics/company-profile/document-preview', {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/pdf',
-        'X-CSRF-Token': 'test-csrf-token-xyz',
-      },
-      body: JSON.stringify({
-        doc_type_code: 'GRR',
-        branch_id: 'branch-uuid-001',
-        signer_id: 'signer-uuid-002',
-        custom_data: { receiver_name: 'Acme Corp', weight_kg: 150.5 },
-      }),
-    })
-    expect(resultBlob).toBeInstanceOf(Blob)
-    expect(resultBlob.type).toBe('application/pdf')
+    expect(pdfApi.companyProfile.download).toHaveBeenCalledWith(previewRequest)
+    expect(downloadPdfFile).toHaveBeenCalledWith(pdf)
   })
 
-  it('genera un blob URL correctamente mediante getPreviewDocumentBlobUrl', async () => {
-    const mockBuffer = new TextEncoder().encode('%PDF-1.4 mock content').buffer
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      headers: {
-        get: (header: string) => (header.toLowerCase() === 'content-type' ? 'application/pdf' : null),
-      },
-      arrayBuffer: vi.fn().mockResolvedValue(mockBuffer),
-    })
-
-    const blobUrl = await companyProfileApi.getPreviewDocumentBlobUrl({
-      doc_type_code: 'CPV',
-    })
-
-    expect(blobUrl).toBe('blob:http://localhost:3000/mock-uuid-1234')
-    expect(URL.createObjectURL).toHaveBeenCalledTimes(1)
-  })
-
-  it('extrae el mensaje de error estructurado del backend en caso de fallo 400/422', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 422,
-      json: vi.fn().mockResolvedValue({
-        detail: 'El tipo documental AREC requiere una sede activa configurada.',
-      }),
-    })
+  it('propaga errores del cliente PDF sin convertirlos en vacíos falsos', async () => {
+    vi.mocked(pdfApi.companyProfile.preview).mockRejectedValue(
+      new Error('Sin permiso'),
+    )
 
     await expect(
-      companyProfileApi.getPreviewDocumentBlob({
-        doc_type_code: 'AREC',
-      }),
-    ).rejects.toThrow('El tipo documental AREC requiere una sede activa configurada.')
-  })
-
-  it('maneja errores con formato de array de validación de FastAPI/Pydantic', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 400,
-      json: vi.fn().mockResolvedValue({
-        detail: [
-          { loc: ['body', 'doc_type_code'], msg: 'Código no soportado' },
-          { loc: ['body', 'signer_id'], msg: 'UUID inválido' },
-        ],
-      }),
-    })
-
-    await expect(
-      companyProfileApi.getPreviewDocumentBlob({
-        doc_type_code: 'INVALID',
-      }),
-    ).rejects.toThrow('Código no soportado, UUID inválido')
-  })
-
-  it('lanza error si la respuesta HTTP es 200 pero el Content-Type no es PDF', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      headers: {
-        get: (header: string) => (header.toLowerCase() === 'content-type' ? 'application/json' : null),
-      },
-      json: vi.fn().mockResolvedValue({ error: 'Fallo al procesar plantilla Weasyprint' }),
-    })
-
-    await expect(
-      companyProfileApi.getPreviewDocumentBlob({
-        doc_type_code: 'AREC',
-      }),
-    ).rejects.toThrow(/Se esperaba un documento PDF pero el servidor respondió con application\/json/)
+      companyProfileApi.getPreviewDocumentBlob(previewRequest),
+    ).rejects.toThrow('Sin permiso')
   })
 })

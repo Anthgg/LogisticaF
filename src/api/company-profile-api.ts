@@ -1,5 +1,6 @@
 import { apiRequest, getCsrfToken } from './api-client'
-import { API_ROOT } from './config'
+import { pdfApi } from './pdf/pdf-endpoints'
+import { createPdfObjectUrl, downloadPdfFile } from './pdf/pdf-client'
 import type {
   AuthorizedSigner,
   AuthorizedSignerCreate,
@@ -202,76 +203,14 @@ export const companyProfileApi = {
 
   // Vista Previa Documental (Logística - Fase 021)
   async getPreviewDocumentBlob(data: InstitutionalPreviewRequest): Promise<Blob> {
-    const csrfToken = await getCsrfToken()
-    const payload = {
-      doc_type_code: data.doc_type_code,
-      branch_id: data.branch_id || null,
-      signer_id: data.signer_id || null,
-      custom_data: data.custom_data ?? {},
-    }
-
-    const response = await fetch(`${API_ROOT}/logistics/company-profile/document-preview`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/pdf',
-        'X-CSRF-Token': csrfToken,
-      },
-      body: JSON.stringify(payload),
-    })
-
-    if (!response.ok) {
-      let errorMessage = `Error ${response.status} al generar vista previa institucional`
-      try {
-        const errorJson = (await response.json()) as Record<string, unknown>
-        if (typeof errorJson === 'object' && errorJson !== null) {
-          if (typeof errorJson.detail === 'string') {
-            errorMessage = errorJson.detail
-          } else if (Array.isArray(errorJson.detail) && errorJson.detail.length > 0) {
-            errorMessage = errorJson.detail
-              .map((d: { msg?: string }) => d.msg ?? JSON.stringify(d))
-              .join(', ')
-          } else if (typeof errorJson.message === 'string') {
-            errorMessage = errorJson.message
-          } else if (
-            errorJson.error &&
-            typeof errorJson.error === 'object' &&
-            typeof (errorJson.error as { message?: string }).message === 'string'
-          ) {
-            errorMessage = (errorJson.error as { message: string }).message
-          }
-        }
-      } catch {
-        // En caso de que no sea JSON
-      }
-      throw new Error(errorMessage)
-    }
-
-    const contentType = response.headers.get('content-type') ?? ''
-    if (
-      contentType &&
-      !contentType.includes('application/pdf') &&
-      !contentType.includes('application/octet-stream')
-    ) {
-      let detail = ''
-      try {
-        const body = (await response.json()) as { detail?: string; message?: string }
-        detail = body?.detail ?? body?.message ?? JSON.stringify(body)
-      } catch {
-        // ignore
-      }
-      throw new Error(
-        `Se esperaba un documento PDF pero el servidor respondió con ${contentType}. ${detail}`.trim(),
-      )
-    }
-
-    const arrayBuffer = await response.arrayBuffer()
-    return new Blob([arrayBuffer], { type: 'application/pdf' })
+    return (await pdfApi.companyProfile.preview(data)).blob
   },
 
   async getPreviewDocumentBlobUrl(data: InstitutionalPreviewRequest): Promise<string> {
-    const blob = await this.getPreviewDocumentBlob(data)
-    return URL.createObjectURL(blob)
+    return createPdfObjectUrl(await pdfApi.companyProfile.preview(data))
+  },
+
+  async downloadPreviewDocument(data: InstitutionalPreviewRequest): Promise<void> {
+    downloadPdfFile(await pdfApi.companyProfile.download(data))
   },
 }

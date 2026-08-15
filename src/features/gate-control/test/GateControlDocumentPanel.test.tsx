@@ -8,7 +8,12 @@ vi.mock('../../logistics-permissions/hooks/useSensitiveActionGuard', () => ({
 }))
 
 vi.mock('../../logistics-permissions/logistics-permissions-map', () => ({
-  LOGISTICS_PERMISSIONS: { gateControl: { issueCPV: 'gate:issue_cpv' } },
+  LOGISTICS_PERMISSIONS: {
+    gateControl: {
+      issueCPV: 'gate:issue_cpv',
+      downloadCPV: 'gate:download_cpv',
+    },
+  },
 }))
 
 function baseCaps(overrides: Partial<GateCheckInCapabilities> = {}): GateCheckInCapabilities {

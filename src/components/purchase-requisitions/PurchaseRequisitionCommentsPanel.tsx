@@ -1,7 +1,14 @@
 import { useState } from 'react'
 import { purchaseRequisitionsApi } from '../../api/purchase-requisitions-api'
 import { Button } from '../common/Button'
+import { SecurePdfViewer } from '../common/SecurePdfViewer'
 import type { PurchaseRequisitionComment } from '../../types/purchase-requisitions'
+import { pdfApi } from '../../api/pdf/pdf-endpoints'
+import {
+  createPdfObjectUrl,
+  downloadPdfFile,
+  getPdfErrorMessage,
+} from '../../api/pdf/pdf-client'
 
 interface CommentsProps {
   requisitionId: string
@@ -74,14 +81,37 @@ export function PurchaseRequisitionCommentsPanel({
 }
 
 interface DocumentProps {
+  requisitionId: string
   requisitionCode: string
   activeRevisionNumber: number
+  canPreview?: boolean
+  canDownload?: boolean
 }
 
 export function PurchaseRequisitionDocumentPanel({
+  requisitionId,
   requisitionCode,
   activeRevisionNumber,
+  canPreview = false,
+  canDownload = false,
 }: DocumentProps) {
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [pdfError, setPdfError] = useState<string | null>(null)
+
+  const handleDownload = async () => {
+    if (isDownloading) return
+    setIsDownloading(true)
+    setPdfError(null)
+    try {
+      downloadPdfFile(await pdfApi.requisition.download(requisitionId))
+    } catch (error: unknown) {
+      setPdfError(getPdfErrorMessage(error))
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4 text-xs">
       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -95,12 +125,21 @@ export function PurchaseRequisitionDocumentPanel({
         </div>
 
         <div className="flex gap-2">
-          <Button size="small" variant="secondary" onClick={() => alert('Generando previsualización autorizada...')}>
-            Vista Previa (NO OFICIAL)
-          </Button>
-          <Button size="small" onClick={() => alert('Iniciando descarga oficial de REQ...')}>
-            Descargar Documento
-          </Button>
+          {canPreview && (
+            <Button size="small" variant="secondary" onClick={() => setIsPreviewOpen(true)}>
+              Vista Previa (NO OFICIAL)
+            </Button>
+          )}
+          {canDownload && (
+            <Button
+              size="small"
+              isLoading={isDownloading}
+              loadingLabel="Descargando…"
+              onClick={() => void handleDownload()}
+            >
+              Descargar Documento
+            </Button>
+          )}
         </div>
       </div>
 
@@ -109,6 +148,31 @@ export function PurchaseRequisitionDocumentPanel({
           El documento REQ es emitido por el backend con marca de agua inmutable. No asigna nuevos correlativos al previsualizar.
         </p>
       </div>
+
+      {pdfError && (
+        <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-800">
+          {pdfError}
+        </p>
+      )}
+
+      <SecurePdfViewer
+        isOpen={isPreviewOpen}
+        title={`Vista previa REQ — ${requisitionCode}`}
+        code={requisitionCode}
+        fetchBlobUrl={async () => {
+          try {
+            return createPdfObjectUrl(
+              await pdfApi.requisition.preview(requisitionId),
+            )
+          } catch (error: unknown) {
+            const message = getPdfErrorMessage(error)
+            setPdfError(message)
+            throw new Error(message)
+          }
+        }}
+        onDownload={canDownload ? () => void handleDownload() : undefined}
+        onClose={() => setIsPreviewOpen(false)}
+      />
     </div>
   )
 }

@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url'
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const SRC = join(ROOT, 'src')
 const MANIFEST = join(ROOT, 'scripts', 'contracts', 'backend-routes.phase045.json')
-const EXPECTED_BACKEND_SHA = '5486774aff0d100fa5210107bd4397944267e7a0'
+const EXPECTED_BACKEND_SHA = 'd55e7f2b64ea6d8ce278fb626046c12d3dab1286'
 
 const TEST_FILE = /(^|[\\/])(test|tests|__tests__|e2e)[\\/]|\.(test|spec)\.[tj]sx?$/
 
@@ -216,9 +216,9 @@ function extractCalls(source, inheritedConstants) {
     for (const path of candidates) calls.push({ path, method, offset })
   }
 
-  // apiRequest({ path, method }): se recorta EXACTAMENTE el objeto de opciones
+  // apiRequest/requestPdf({ path, method }): se recorta EXACTAMENTE el objeto de opciones
   // por balance de llaves; si no, el `method:` de una llamada vecina contamina.
-  for (const match of source.matchAll(/\bapiRequest\s*(?:<[^>]*>)?\s*\(\s*\{/g)) {
+  for (const match of source.matchAll(/\b(?:apiRequest|requestPdf)\s*(?:<[^>]*>)?\s*\(\s*\{/g)) {
     // La llave es la ÚLTIMA del match: `apiRequest<{ id: string }>({` tiene una
     // llave dentro del genérico, y buscar la primera cortaría ahí.
     const options = readBalanced(source, match.index + match[0].length - 1, ['{', '}'])

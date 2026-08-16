@@ -107,7 +107,9 @@ export function OrganizationsPage() {
   const toggleStatus = async (org: OrganizationResponse) => {
     setIsSaving(true)
     try {
-      await logisticsApi.organizations.changeStatus(editing?.id ?? org.id, {
+      // Siempre la fila sobre la que se pulsó. `editing` sobrevive al cierre del
+      // diálogo, así que usarlo aquí mandaba el PATCH a la organización equivocada.
+      await logisticsApi.organizations.changeStatus(org.id, {
         status: org.status === 'active' ? 'inactive' : 'active',
       })
       await load()

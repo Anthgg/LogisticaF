@@ -22,7 +22,9 @@ import { fileURLToPath } from 'node:url'
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const SRC = join(ROOT, 'src')
 const MANIFEST = join(ROOT, 'scripts', 'contracts', 'backend-routes.phase045.json')
-const EXPECTED_BACKEND_SHA = 'd55e7f2b64ea6d8ce278fb626046c12d3dab1286'
+// Regenerado en F004: el backend añadió una sola operación,
+// GET /api/logistics/branches/{branch_id}/warehouses/{warehouse_id} (973 -> 974).
+const EXPECTED_BACKEND_SHA = '9da02054b66955ca527e9423ad4426b632a83751'
 
 const TEST_FILE = /(^|[\\/])(test|tests|__tests__|e2e)[\\/]|\.(test|spec)\.[tj]sx?$/
 

@@ -2,20 +2,30 @@ import { useCallback, useEffect, useState } from 'react'
 import { logisticsApi } from '../api/logistics-api'
 import { Alert } from '../components/common/Alert'
 import { Button } from '../components/common/Button'
+import { Input } from '../components/common/Input'
 import { OperationsTable, type TableColumn } from '../components/common/OperationsTable'
 import { PageHeader } from '../components/common/PageHeader'
 import { Pagination } from '../components/common/Pagination'
 import { QueryBar } from '../components/common/QueryBar'
+import { ResourceDialog } from '../components/common/ResourceDialog'
 import { StatusBadge } from '../components/common/StatusBadge'
 import { PermissionGate } from '../components/logistics/PermissionGate'
 import { useLogisticsAccess } from '../features/logistics-me/hooks/useLogisticsAccess'
 import { LOGISTICS_PERMISSIONS } from '../features/logistics-permissions/logistics-permissions-map'
 import type {
+  BranchCreate,
   BranchResponse,
   OrganizationResponse,
   PaginatedResponse,
 } from '../types/logistics-resources'
 import { getErrorMessage } from '../utils/errors'
+
+const emptyForm: BranchCreate = {
+  code: '',
+  name: '',
+  timezone: 'America/Lima',
+  address_text: '',
+}
 
 export function BranchesPage() {
   const access = useLogisticsAccess()
@@ -39,6 +49,11 @@ export function BranchesPage() {
   const [page, setPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const [form, setForm] = useState<BranchCreate>(emptyForm)
+  const [editing, setEditing] = useState<BranchResponse | null>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     void logisticsApi.organizations
@@ -79,7 +94,54 @@ export function BranchesPage() {
     return () => window.clearTimeout(timer)
   }, [load])
 
+  const openDialog = (branch?: BranchResponse) => {
+    setError(null)
+    setEditing(branch ?? null)
+    setForm(
+      branch
+        ? {
+            code: branch.code,
+            name: branch.name,
+            timezone: branch.timezone,
+            address_text: branch.address_text ?? '',
+          }
+        : emptyForm,
+    )
+    setIsOpen(true)
+  }
+
+  const save = async () => {
+    if (isSaving) return
+    setIsSaving(true)
+    setError(null)
+    try {
+      if (editing) {
+        await logisticsApi.branches.update(editing.id, {
+          name: form.name,
+          timezone: form.timezone,
+          address_text: form.address_text || null,
+        })
+      } else {
+        // `organization_id` viaja en la ruta; el formulario nunca pide un UUID.
+        await logisticsApi.branches.create(selectedOrg, {
+          code: form.code,
+          name: form.name,
+          timezone: form.timezone,
+          address_text: form.address_text || null,
+        })
+      }
+      setIsOpen(false)
+      setEditing(null)
+      await load()
+    } catch (caught: unknown) {
+      setError(getErrorMessage(caught))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const toggleStatus = async (branch: BranchResponse) => {
+    setError(null)
     try {
       await logisticsApi.branches.changeStatus(branch.id, {
         status: branch.status === 'active' ? 'inactive' : 'active',
@@ -127,6 +189,11 @@ export function BranchesPage() {
       render: (row) =>
         canManage && (
           <div className="table-actions">
+            {canUpdate && (
+              <Button size="small" variant="ghost" onClick={() => openDialog(row)}>
+                Editar
+              </Button>
+            )}
             {canChangeStatus && (
               <Button size="small" variant="ghost" onClick={() => void toggleStatus(row)}>
                 {row.status === 'active' ? 'Desactivar' : 'Activar'}
@@ -137,6 +204,11 @@ export function BranchesPage() {
     },
   ]
 
+  const updateText = (key: keyof BranchCreate, value: string) =>
+    setForm((current) => ({ ...current, [key]: value }))
+
+  const selectedOrgLabel = orgs.find((org) => org.id === selectedOrg)
+
   return (
     <div className="page">
       <PageHeader
@@ -145,7 +217,9 @@ export function BranchesPage() {
         description="Gestiona las sedes por organización."
         actions={
           <PermissionGate permission={LOGISTICS_PERMISSIONS.branches.create}>
-            <Button disabled={!selectedOrg}>Nueva sede</Button>
+            <Button disabled={!selectedOrg} onClick={() => openDialog()}>
+              Nueva sede
+            </Button>
           </PermissionGate>
         }
       />
@@ -207,6 +281,54 @@ export function BranchesPage() {
           </div>
         )}
       </section>
+      <ResourceDialog
+        isOpen={isOpen}
+        title={editing ? 'Editar sede' : 'Nueva sede'}
+        submitLabel={editing ? 'Guardar cambios' : 'Crear sede'}
+        isSubmitting={isSaving}
+        onClose={() => {
+          setIsOpen(false)
+          setEditing(null)
+        }}
+        onSubmit={() => void save()}
+      >
+        <div className="form-grid">
+          <Input
+            label="Organización"
+            value={
+              selectedOrgLabel
+                ? `${selectedOrgLabel.name} (${selectedOrgLabel.code})`
+                : ''
+            }
+            readOnly
+            disabled
+          />
+          <Input
+            label="Código"
+            value={form.code}
+            onChange={(e) => updateText('code', e.target.value)}
+            required
+            disabled={Boolean(editing)}
+          />
+          <Input
+            label="Nombre"
+            value={form.name}
+            onChange={(e) => updateText('name', e.target.value)}
+            required
+          />
+          <Input
+            label="Zona horaria"
+            value={form.timezone}
+            onChange={(e) => updateText('timezone', e.target.value)}
+            required
+          />
+          <Input
+            label="Dirección"
+            value={form.address_text ?? ''}
+            onChange={(e) => updateText('address_text', e.target.value)}
+          />
+        </div>
+      </ResourceDialog>
     </div>
   )
 }

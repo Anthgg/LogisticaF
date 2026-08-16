@@ -2,6 +2,7 @@ import { apiRequest } from './api-client'
 import type {
   AuditEventListQuery,
   AuditEventSummaryResponse,
+  BranchCreate,
   BranchResponse,
   BranchStatusUpdate,
   BranchUpdate,
@@ -10,7 +11,6 @@ import type {
   LogisticsWarehouseResponse,
   LogisticsWarehouseSetDefault,
   LogisticsWarehouseStatusUpdate,
-  LogisticsWarehouseUpdate,
   OrganizationCreate,
   OrganizationResponse,
   OrganizationStatusUpdate,
@@ -59,6 +59,12 @@ export const logisticsApi = {
   branches: {
     get: (id: string) =>
       apiRequest<BranchResponse>({ path: `/logistics/branches/${id}` }),
+    create: (organizationId: string, body: BranchCreate) =>
+      apiRequest<BranchResponse>({
+        path: `/logistics/organizations/${organizationId}/branches`,
+        method: 'POST',
+        body,
+      }),
     update: (id: string, body: BranchUpdate) =>
       apiRequest<BranchResponse>({ path: `/logistics/branches/${id}`, method: 'PATCH', body }),
     changeStatus: (id: string, body: BranchStatusUpdate) =>
@@ -68,17 +74,27 @@ export const logisticsApi = {
         path: `/logistics/branches/${id}/warehouses${buildQuery(query as Record<string, unknown>)}`,
       }),
   },
+  /**
+   * Almacén como entidad estructural (F004). La jerarquía es
+   * Organization -> Branch -> Warehouse, así que no hay listado global: se lista
+   * por sede. El módulo rico de F022 (`/logistics/warehouses`, ubicaciones,
+   * layouts, QR) vive en `warehouses-modeling-api` y responde otro contrato.
+   */
   warehouses: {
-    list: (query: ListQuery = {}) =>
+    listByBranch: (branchId: string, query: ListQuery = {}) =>
       apiRequest<PaginatedResponse<LogisticsWarehouseResponse>>({
-        path: `/logistics/warehouses${buildQuery(query as Record<string, unknown>)}`,
+        path: `/logistics/branches/${branchId}/warehouses${buildQuery(query as Record<string, unknown>)}`,
       }),
-    get: (id: string) =>
-      apiRequest<LogisticsWarehouseResponse>({ path: `/logistics/warehouses/${id}` }),
-    create: (body: LogisticsWarehouseCreate) =>
-      apiRequest<LogisticsWarehouseResponse>({ path: '/logistics/warehouses', method: 'POST', body }),
-    update: (id: string, body: LogisticsWarehouseUpdate) =>
-      apiRequest<LogisticsWarehouseResponse>({ path: `/logistics/warehouses/${id}`, method: 'PUT', body }),
+    get: (branchId: string, id: string) =>
+      apiRequest<LogisticsWarehouseResponse>({
+        path: `/logistics/branches/${branchId}/warehouses/${id}`,
+      }),
+    create: (branchId: string, body: LogisticsWarehouseCreate) =>
+      apiRequest<LogisticsWarehouseResponse>({
+        path: `/logistics/branches/${branchId}/warehouses`,
+        method: 'POST',
+        body,
+      }),
     changeStatus: (id: string, body: LogisticsWarehouseStatusUpdate) =>
       apiRequest<LogisticsWarehouseResponse>({ path: `/logistics/warehouses/${id}/status`, method: 'PATCH', body }),
     setDefault: (id: string, body: LogisticsWarehouseSetDefault) =>

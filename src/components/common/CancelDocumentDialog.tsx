@@ -2,14 +2,14 @@ import { useState } from 'react'
 import { ResourceDialog } from './ResourceDialog'
 import { Input } from './Input'
 import { TextareaField } from './FormControls'
-import type { DocumentItem } from '../../types/logistics-documents'
+import type { DocumentSummary } from '../../types/logistics-documents'
 
 interface CancelDocumentDialogProps {
   isOpen: boolean
-  document: DocumentItem | null
+  document: DocumentSummary | null
   isSubmitting?: boolean
   onClose: () => void
-  onSubmit: (reason: string, confirmCode: string) => Promise<void>
+  onSubmit: (reason: string) => Promise<void>
 }
 
 export function CancelDocumentDialog({
@@ -25,17 +25,21 @@ export function CancelDocumentDialog({
 
   if (!document) return null
 
+  // El backend publica `document_code` y admite null mientras el documento no
+  // se emite. La confirmación por código sigue siendo una guarda local.
+  const documentCode = document.document_code ?? 'Sin código'
+
   const handleConfirm = async () => {
     if (reason.trim().length < 10) {
       setError('Debes especificar un motivo detallado de al menos 10 caracteres.')
       return
     }
-    if (confirmCodeInput.trim() !== document.code) {
-      setError(`Debes escribir exactamente el código del documento (${document.code}) para confirmar.`)
+    if (confirmCodeInput.trim() !== documentCode) {
+      setError(`Debes escribir exactamente el código del documento (${documentCode}) para confirmar.`)
       return
     }
     setError(null)
-    await onSubmit(reason.trim(), confirmCodeInput.trim())
+    await onSubmit(reason.trim())
     setReason('')
     setConfirmCodeInput('')
   }
@@ -43,7 +47,7 @@ export function CancelDocumentDialog({
   return (
     <ResourceDialog
       isOpen={isOpen}
-      title={`Anular documento — ${document.code}`}
+      title={`Anular documento — ${documentCode}`}
       submitLabel="Confirmar anulación"
       isSubmitting={isSubmitting}
       onClose={onClose}
@@ -54,7 +58,7 @@ export function CancelDocumentDialog({
           <p className="font-bold">¡Atención! Acción irreversible:</p>
           <p className="mt-1 leading-relaxed">
             La anulación marcará el documento como <strong>SIN VALIDEZ LEGAL NI LOGÍSTICA</strong>. El código asignado{' '}
-            <code className="font-mono">{document.code}</code> no será liberado ni reutilizado. El documento permanecerá visible
+            <code className="font-mono">{documentCode}</code> no será liberado ni reutilizado. El documento permanecerá visible
             en el historial con estado <strong>ANULADO</strong>.
           </p>
         </div>
@@ -72,13 +76,13 @@ export function CancelDocumentDialog({
         />
 
         <Input
-          label={`Para confirmar la anulación, escribe el código exactamente: ${document.code}`}
+          label={`Para confirmar la anulación, escribe el código exactamente: ${documentCode}`}
           value={confirmCodeInput}
           onChange={(e) => {
             setConfirmCodeInput(e.target.value)
             if (error) setError(null)
           }}
-          placeholder={document.code}
+          placeholder={documentCode}
           required
         />
 

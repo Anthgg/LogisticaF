@@ -1,59 +1,27 @@
-import { useEffect, useState } from 'react'
-import { documentsApi } from '../../api/documents-api'
-import { Button } from './Button'
 import { StatusBadge } from './StatusBadge'
 import type { DocumentExportJob } from '../../types/logistics-documents'
 import { formatDateTime } from '../../utils/date'
-import { getErrorMessage } from '../../utils/errors'
 
 interface DocumentExportJobsPanelProps {
   isOpen: boolean
-  activeJobId: string | null
+  /** El trabajo tal como lo devolvió la creación de la exportación. */
+  job: DocumentExportJob | null
   onClose: () => void
 }
 
+/**
+ * Muestra el trabajo de exportación que devolvió `POST /documents/export`.
+ *
+ * No hay sondeo ni descarga: el backend responde con `polling_url` y
+ * `download_url` apuntando a `/document-exports/{id}`, un recurso que el
+ * contrato de esta versión no publica. Se dice tal cual en vez de simular un
+ * progreso o un enlace que no existe.
+ */
 export function DocumentExportJobsPanel({
   isOpen,
-  activeJobId,
+  job,
   onClose,
 }: DocumentExportJobsPanelProps) {
-  const [job, setJob] = useState<DocumentExportJob | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!isOpen || !activeJobId) return undefined
-
-    let active = true
-    let timer: number | null = null
-
-    const fetchStatus = async () => {
-      try {
-        const data = await documentsApi.getExportJob(activeJobId)
-        if (!active) return
-        setJob(data)
-        setError(null)
-
-        // Continuar polling mientras el estado sea activo
-        if (['QUEUED', 'VALIDATING', 'PROCESSING'].includes(data.status)) {
-          timer = window.setTimeout(() => void fetchStatus(), 3000)
-        }
-      } catch (err: unknown) {
-        if (active) setError(getErrorMessage(err))
-      } finally {
-        if (active) setIsLoading(false)
-      }
-    }
-
-    setIsLoading(true)
-    void fetchStatus()
-
-    return () => {
-      active = false
-      if (timer) window.clearTimeout(timer)
-    }
-  }, [activeJobId, isOpen])
-
   if (!isOpen) return null
 
   return (
@@ -81,54 +49,34 @@ export function DocumentExportJobsPanel({
           </button>
         </div>
 
-        {isLoading && !job && (
-          <div className="loading-panel">
-            <span className="spinner" />
-            <p>Consultando estado de la exportación…</p>
-          </div>
+        {!job && (
+          <p className="text-xs text-slate-500">
+            Todavía no se ha solicitado ninguna exportación en esta sesión.
+          </p>
         )}
-
-        {error && <p className="text-xs font-semibold text-rose-600">{error}</p>}
 
         {job && (
           <div className="space-y-4 text-xs">
             <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3">
               <div>
                 <span className="text-[10px] font-bold text-slate-400 uppercase">Identificador de tarea</span>
-                <p className="font-mono font-bold text-slate-900">{job.id.slice(0, 13)}…</p>
+                <p className="font-mono font-bold text-slate-900">{job.job_id}</p>
               </div>
               <StatusBadge value={job.status.toLowerCase()}>{job.status}</StatusBadge>
             </div>
 
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] font-semibold text-slate-700">
-                <span>Progreso de empaquetado</span>
-                <span>
-                  {job.processed_documents} / {job.total_documents} docs
-                </span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full bg-blue-700 transition-colors duration-300"
-                  style={{
-                    width: `${
-                      job.total_documents > 0
-                        ? Math.min((job.processed_documents / job.total_documents) * 100, 100)
-                        : 0
-                    }%`,
-                  }}
-                />
-              </div>
-            </div>
-
             <dl className="detail-list detail-list--compact">
               <div>
-                <dt>Formato</dt>
-                <dd>{job.export_format}</dd>
+                <dt>Documentos incluidos</dt>
+                <dd>{job.total_items}</dd>
               </div>
               <div>
-                <dt>Solicitado el</dt>
-                <dd>{formatDateTime(job.created_at)}</dd>
+                <dt>Procesados</dt>
+                <dd>{job.processed_items}</dd>
+              </div>
+              <div>
+                <dt>Fallidos</dt>
+                <dd>{job.failed_items}</dd>
               </div>
               <div>
                 <dt>Vencimiento de la descarga</dt>
@@ -136,23 +84,13 @@ export function DocumentExportJobsPanel({
               </div>
             </dl>
 
-            {job.status === 'READY' && (
-              <div className="flex justify-end pt-2">
-                <Button
-                  onClick={() => {
-                    void documentsApi.downloadExportZip(job.id)
-                  }}
-                >
-                  Descargar ZIP de exportación
-                </Button>
-              </div>
-            )}
-
-            {job.status === 'FAILED' && (
-              <p className="rounded-lg bg-rose-50 p-3 text-xs text-rose-700">
-                Error en la exportación: {job.error_message || 'No se pudo completar el empaquetado.'}
-              </p>
-            )}
+            <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-medium text-amber-800">
+              El seguimiento y la descarga del paquete no están disponibles en
+              esta versión del contrato: el backend los publica en{' '}
+              <code className="font-mono">{job.polling_url}</code>, una ruta que
+              todavía no expone. Anota el identificador para reclamarlo cuando
+              se publique.
+            </p>
           </div>
         )}
       </div>

@@ -1,5 +1,6 @@
 import { apiRequest, getCsrfToken } from './api-client'
 import { API_ROOT } from './config'
+import { contractGap } from './contract-availability'
 import { pdfApi } from './pdf/pdf-endpoints'
 import { createPdfObjectUrl, downloadPdfFile } from './pdf/pdf-client'
 import type {
@@ -8,48 +9,69 @@ import type {
   DocumentExportJob,
   DocumentExportRequest,
   DocumentHistoryEntry,
-  DocumentItem,
-  DocumentPackage,
+  DocumentHistoryResponse,
+  DocumentListResponse,
   DocumentReprintRequest,
   DocumentTalonario,
 } from '../types/logistics-documents'
-import type { ListQuery, PaginatedResponse } from '../types/logistics-resources'
+import type { PaginatedResponse } from '../types/logistics-resources'
+
+/** Filtros que el backend publica para `GET /logistics/documents`. */
+export interface DocumentListQuery {
+  page?: number
+  page_size?: number
+  search?: string
+  document_code?: string
+  document_type_code?: string
+  family?: string
+  status?: string
+  branch_id?: string
+  warehouse_id?: string
+  source_resource_type?: string
+  source_resource_id?: string
+  date_from?: string
+  date_to?: string
+  sensitivity?: string
+}
+
+/**
+ * `DocumentListResponse` no trae `total_pages`. Se deriva aquí, en la vista, en
+ * vez de fingir que el dato vino del servidor.
+ */
+export function documentTotalPages(total: number, pageSize: number): number {
+  if (pageSize <= 0 || total <= 0) return 0
+  return Math.ceil(total / pageSize)
+}
 
 export const documentsApi = {
-  async list(query: ListQuery): Promise<PaginatedResponse<DocumentItem>> {
+  async list(query: DocumentListQuery = {}): Promise<DocumentListResponse> {
     const params = new URLSearchParams()
-    if (query.page) params.set('page', String(query.page))
-    if (query.page_size) params.set('page_size', String(query.page_size))
-    if (query.search) params.set('search', query.search)
-    if (query.status) params.set('status', query.status)
-    if (query.family) params.set('family', String(query.family))
-    if (query.document_type) params.set('document_type', String(query.document_type))
-    if (query.branch_id) params.set('branch_id', String(query.branch_id))
-    if (query.warehouse_id) params.set('warehouse_id', String(query.warehouse_id))
-    if (query.date_from) params.set('date_from', String(query.date_from))
-    if (query.date_to) params.set('date_to', String(query.date_to))
+    for (const [key, value] of Object.entries(query)) {
+      if (value === undefined || value === null || value === '') continue
+      params.set(key, String(value))
+    }
     const qs = params.toString()
-    return apiRequest({
+    return apiRequest<DocumentListResponse>({
       path: `/logistics/documents${qs ? `?${qs}` : ''}`,
     })
   },
 
   async get(id: string): Promise<DocumentDetail> {
-    return apiRequest({
+    return apiRequest<DocumentDetail>({
       path: `/logistics/documents/${id}`,
     })
   },
 
+  /**
+   * El historial llega envuelto en `{ document_id, history }`. No se captura el
+   * error: un fallo de red que devuelva `[]` se leería como "sin historial",
+   * que es justo lo contrario de lo que pasó.
+   */
   async getHistory(id: string): Promise<DocumentHistoryEntry[]> {
-    try {
-      const res = await apiRequest<DocumentHistoryEntry[] | { items: DocumentHistoryEntry[] }>({
-        path: `/logistics/documents/${id}/history`,
-      })
-      if (Array.isArray(res)) return res
-      return res.items || []
-    } catch {
-      return []
-    }
+    const response = await apiRequest<DocumentHistoryResponse>({
+      path: `/logistics/documents/${id}/history`,
+    })
+    return response.history
   },
 
   async getPreviewBlobUrl(id: string): Promise<string> {
@@ -58,7 +80,6 @@ export const documentsApi = {
 
   async downloadPdf(
     id: string,
-    _code: string,
     original = false,
     stepUpProofId?: string,
   ): Promise<void> {
@@ -98,7 +119,7 @@ export const documentsApi = {
 
   async createExport(data: DocumentExportRequest): Promise<DocumentExportJob> {
     const csrfToken = await getCsrfToken()
-    return apiRequest({
+    return apiRequest<DocumentExportJob>({
       path: '/logistics/documents/export',
       method: 'POST',
       headers: { 'X-CSRF-Token': csrfToken },
@@ -106,68 +127,35 @@ export const documentsApi = {
     })
   },
 
+  /**
+   * El backend devuelve `polling_url` apuntando a `/document-exports/{id}`,
+   * pero ese recurso no está publicado en el contrato: no hay nada que
+   * consultar. La UI muestra el trabajo tal como lo devolvió la creación.
+   */
   async getExportJob(_jobId: string): Promise<DocumentExportJob> {
-    return {
-      id: _jobId,
-      status: 'READY',
-      total_documents: 1,
-      processed_documents: 1,
-      export_format: 'ZIP',
-      created_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 86400000).toISOString(),
-      download_url: `${API_ROOT}/logistics/document-talonarios/${_jobId}/pdf`,
-      error_message: null,
-    }
+    throw contractGap('El seguimiento de un trabajo de exportación')
   },
 
-  async downloadExportZip(jobId: string): Promise<void> {
-    const response = await fetch(`${API_ROOT}/logistics/document-packages/${jobId}.zip`, {
-      method: 'GET',
-      credentials: 'include',
-    })
-    if (!response.ok) {
-      throw new Error(`Error ${response.status} al descargar paquete de exportación`)
-    }
-    const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `export_${jobId.slice(0, 8)}.zip`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+  /**
+   * Igual que el seguimiento: `download_url` apunta a
+   * `/document-exports/{id}/download`, que tampoco está publicado.
+   */
+  async downloadExportZip(_jobId: string): Promise<void> {
+    throw contractGap('La descarga del paquete de exportación')
   },
 
-  async listTalonarios(query?: ListQuery): Promise<PaginatedResponse<DocumentTalonario>> {
+  async listTalonarios(query?: { page?: number; page_size?: number }): Promise<PaginatedResponse<DocumentTalonario>> {
     const params = new URLSearchParams()
     if (query?.page) params.set('page', String(query.page))
     if (query?.page_size) params.set('page_size', String(query.page_size))
     const qs = params.toString()
-    try {
-      const res = await apiRequest<PaginatedResponse<DocumentTalonario>>({
-        path: `/logistics/document-series${qs ? `?${qs}` : ''}`,
-      })
-      return res
-    } catch {
-      return { items: [], page: 1, page_size: 20, total: 0, total_pages: 1 }
-    }
+    return apiRequest<PaginatedResponse<DocumentTalonario>>({
+      path: `/logistics/document-series${qs ? `?${qs}` : ''}`,
+    })
   },
 
   async downloadTalonarioPdf(talonarioId: string): Promise<void> {
     downloadPdfFile(await pdfApi.documentSeries.downloadTalonario(talonarioId))
-  },
-
-  async getPackage(_operationType: string, _operationId: string): Promise<DocumentPackage> {
-    return {
-      operation_type: _operationType,
-      operation_id: _operationId,
-      status: 'COMPLETE',
-      required_count: 0,
-      present_count: 0,
-      missing_count: 0,
-      documents: [],
-    }
   },
 
   async downloadPackageZip(operationType: string, operationId: string): Promise<void> {

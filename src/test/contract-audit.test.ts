@@ -5,7 +5,9 @@ import process from 'node:process'
 
 import { describe, expect, it } from 'vitest'
 
-const EXPECTED_BACKEND_SHA = 'd55e7f2b64ea6d8ce278fb626046c12d3dab1286'
+// Regenerado en F004: el backend añadió una sola operación,
+// GET /api/logistics/branches/{branch_id}/warehouses/{warehouse_id} (973 -> 974).
+const EXPECTED_BACKEND_SHA = '0f30c332fd800a767eb39391a08d0d7506ace9a0'
 const manifestPath = resolve(process.cwd(), 'scripts', 'contracts', 'backend-routes.phase045.json')
 const auditPath = resolve(process.cwd(), 'scripts', 'audit-api-contract.mjs')
 

@@ -1,8 +1,8 @@
 {
- "source_backend_sha": "d55e7f2b64ea6d8ce278fb626046c12d3dab1286",
+ "source_backend_sha": "0f30c332fd800a767eb39391a08d0d7506ace9a0",
  "source_openapi_version": "0.9.1",
  "generated_from": "http://127.0.0.1:8000/openapi.json",
- "operation_count": 973,
+ "operation_count": 974,
  "operations": [
   {
    "method": "POST",
@@ -483,6 +483,11 @@
   {
    "method": "POST",
    "path": "/api/logistics/branches/{branch_id}/warehouses",
+   "query": []
+  },
+  {
+   "method": "GET",
+   "path": "/api/logistics/branches/{branch_id}/warehouses/{warehouse_id}",
    "query": []
   },
   {

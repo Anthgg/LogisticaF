@@ -48,8 +48,8 @@ export interface BranchResponse {
   updated_at: string
 }
 
+/** `organization_id` viaja en la ruta (`/organizations/{id}/branches`), no en el cuerpo. */
 export interface BranchCreate {
-  organization_id: string
   code: string
   name: string
   timezone: string
@@ -70,27 +70,43 @@ export interface BranchStatusUpdate {
   status: string
 }
 
+/**
+ * Copia exacta de `LogisticsWarehouseResponse` (backend, módulo organization).
+ * El backend NO emite `status` para almacenes: emite `is_active`. Y `address`,
+ * `district`, `province` y `department` son nullable porque la columna lo es.
+ */
 export interface LogisticsWarehouseResponse {
   id: string
+  organization_id: string | null
+  branch_id: string | null
   code: string
   name: string
-  organization_id: string
-  branch_id: string
-  status: string
+  warehouse_type: string
+  address: string | null
+  district: string | null
+  province: string | null
+  department: string | null
+  capacity: number | null
   is_default: boolean
+  is_active: boolean
   created_at: string
   updated_at: string
 }
 
+/**
+ * `branch_id` viaja en la ruta, no en el cuerpo, y `organization_id` lo deriva el
+ * backend desde la sede: enviarlo no tendría efecto.
+ */
 export interface LogisticsWarehouseCreate {
   code: string
   name: string
-  organization_id: string
-  branch_id: string
-}
-
-export interface LogisticsWarehouseUpdate {
-  name?: string
+  warehouse_type: string
+  address: string
+  district: string
+  province: string
+  department: string
+  capacity?: number | null
+  is_default?: boolean
 }
 
 export interface LogisticsWarehouseStatusUpdate {

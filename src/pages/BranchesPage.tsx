@@ -10,6 +10,7 @@ import { QueryBar } from '../components/common/QueryBar'
 import { ResourceDialog } from '../components/common/ResourceDialog'
 import { StatusBadge } from '../components/common/StatusBadge'
 import { PermissionGate } from '../components/logistics/PermissionGate'
+import { UbigeoSelector } from '../components/logistics/UbigeoSelector'
 import { useLogisticsAccess } from '../features/logistics-me/hooks/useLogisticsAccess'
 import { LOGISTICS_PERMISSIONS } from '../features/logistics-permissions/logistics-permissions-map'
 import type {
@@ -24,6 +25,7 @@ const emptyForm: BranchCreate = {
   code: '',
   name: '',
   timezone: 'America/Lima',
+  ubigeo_code: null,
   address_text: '',
 }
 
@@ -103,6 +105,7 @@ export function BranchesPage() {
             code: branch.code,
             name: branch.name,
             timezone: branch.timezone,
+            ubigeo_code: branch.ubigeo_code ?? null,
             address_text: branch.address_text ?? '',
           }
         : emptyForm,
@@ -119,6 +122,7 @@ export function BranchesPage() {
         await logisticsApi.branches.update(editing.id, {
           name: form.name,
           timezone: form.timezone,
+          ubigeo_code: form.ubigeo_code ?? null,
           address_text: form.address_text || null,
         })
       } else {
@@ -127,6 +131,8 @@ export function BranchesPage() {
           code: form.code,
           name: form.name,
           timezone: form.timezone,
+          // Solo el codigo canonico: los nombres del catalogo no son fuente de verdad.
+          ubigeo_code: form.ubigeo_code ?? null,
           address_text: form.address_text || null,
         })
       }
@@ -162,6 +168,13 @@ export function BranchesPage() {
           <small>{row.code}</small>
         </div>
       ),
+    },
+    {
+      key: 'ubigeo',
+      label: 'Ubicación',
+      render: (row) =>
+        // El backend ya resuelve la jerarquía; se muestra legible, no el código.
+        row.ubigeo?.formatted ?? 'Pendiente de normalizar',
     },
     {
       key: 'address_text',
@@ -331,6 +344,18 @@ export function BranchesPage() {
             onChange={(e) => updateText('address_text', e.target.value)}
           />
         </div>
+
+        {/* La división administrativa y la dirección humana son cosas distintas:
+            el UBIGEO identifica el distrito, la dirección dice dónde está la puerta. */}
+        <h4 className="field__label">Ubicación administrativa</h4>
+        <UbigeoSelector
+          value={form.ubigeo_code ?? null}
+          resolved={editing?.ubigeo ?? null}
+          onChange={(ubigeoCode) =>
+            setForm((current) => ({ ...current, ubigeo_code: ubigeoCode }))
+          }
+          disabled={isSaving}
+        />
       </ResourceDialog>
     </div>
   )

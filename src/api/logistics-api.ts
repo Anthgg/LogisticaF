@@ -17,6 +17,11 @@ import type {
   OrganizationUpdate,
   PaginatedResponse,
   PermissionResponse,
+  RoleCreate,
+  RoleMatrixResponse,
+  RolePermissionsUpdate,
+  RoleStatusUpdate,
+  RoleUpdate,
   RoleAssignmentCreate,
   RoleAssignmentDateUpdate,
   RoleAssignmentResponse,
@@ -109,6 +114,16 @@ export const logisticsApi = {
       apiRequest<RoleResponse>({ path: `/logistics/roles/${id}` }),
     permissions: (id: string) =>
       apiRequest<RolePermissionResponse[]>({ path: `/logistics/roles/${id}/permissions` }),
+    create: (body: RoleCreate) =>
+      apiRequest<RoleResponse>({ path: '/logistics/roles', method: 'POST', body }),
+    update: (id: string, body: RoleUpdate) =>
+      apiRequest<RoleResponse>({ path: `/logistics/roles/${id}`, method: 'PATCH', body }),
+    changeStatus: (id: string, body: RoleStatusUpdate) =>
+      apiRequest<RoleResponse>({ path: `/logistics/roles/${id}/status`, method: 'PATCH', body }),
+    replacePermissions: (id: string, body: RolePermissionsUpdate) =>
+      apiRequest<string[]>({ path: `/logistics/roles/${id}/permissions`, method: 'PUT', body }),
+    /** Roles, permisos y sus vínculos en una sola respuesta. */
+    matrix: () => apiRequest<RoleMatrixResponse>({ path: '/logistics/roles-matrix' }),
   },
   roleAssignments: {
     list: async (query: ListQuery & { user_id?: string } = {}): Promise<PaginatedResponse<RoleAssignmentResponse>> => {

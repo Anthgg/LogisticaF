@@ -1,8 +1,8 @@
 {
- "source_backend_sha": "82750ea4aeba67fdab260747f982f3e4218aa532",
+ "source_backend_sha": "41c91766ef499eec8deca7d04159cda1664f310f",
  "source_openapi_version": "0.9.1",
  "generated_from": "http://127.0.0.1:8000/openapi.json",
- "operation_count": 978,
+ "operation_count": 983,
  "operations": [
   {
    "method": "POST",
@@ -4446,7 +4446,22 @@
    ]
   },
   {
+   "method": "POST",
+   "path": "/api/logistics/roles",
+   "query": []
+  },
+  {
    "method": "GET",
+   "path": "/api/logistics/roles-matrix",
+   "query": []
+  },
+  {
+   "method": "GET",
+   "path": "/api/logistics/roles/{role_id}",
+   "query": []
+  },
+  {
+   "method": "PATCH",
    "path": "/api/logistics/roles/{role_id}",
    "query": []
   },
@@ -4456,8 +4471,18 @@
    "query": []
   },
   {
+   "method": "PUT",
+   "path": "/api/logistics/roles/{role_id}/permissions",
+   "query": []
+  },
+  {
    "method": "GET",
    "path": "/api/logistics/roles/{role_id}/scope-rules",
+   "query": []
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/logistics/roles/{role_id}/status",
    "query": []
   },
   {

@@ -227,6 +227,8 @@ export function OrganizationsPage() {
         onClose={() => setIsOpen(false)}
         onSubmit={() => void save()}
       >
+        {/* El Alert de la página queda detrás del modal. */}
+        {error && <Alert variant="error">{error}</Alert>}
         <div className="form-grid">
           <Input
             label="Código"

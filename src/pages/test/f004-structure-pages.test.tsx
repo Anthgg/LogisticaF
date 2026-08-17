@@ -354,6 +354,36 @@ describe('WarehousesPage', () => {
     expect(body).not.toHaveProperty('branch_id')
   })
 
+  it('muestra el error de creación dentro del diálogo, no detrás del modal', async () => {
+    // Un 409 de código duplicado se renderizaba en el Alert de la página, que queda
+    // tapado por el modal: el usuario veía el formulario intacto y ningún motivo.
+    const user = userEvent.setup()
+    vi.mocked(logisticsApi.warehouses.create).mockRejectedValue(
+      new ApiRequestError('El código de almacén ya existe en esta sede.', {
+        code: 'WAREHOUSE_CODE_CONFLICT',
+        status: 409,
+      }),
+    )
+    renderPage(<WarehousesPage />)
+    await screen.findByText('Almacén Lima Uno')
+
+    await user.click(screen.getByRole('button', { name: 'Nuevo almacén' }))
+    await user.type(screen.getByLabelText('Código'), 'WH-LIM-01')
+    await user.type(screen.getByLabelText('Nombre'), 'Duplicado')
+    await user.type(screen.getByLabelText('Dirección'), 'Av. Duplicada 200')
+    await user.type(screen.getByLabelText('Distrito'), 'Ate')
+    await user.type(screen.getByLabelText('Provincia'), 'Lima')
+    await user.type(screen.getByLabelText('Departamento'), 'Lima')
+    await user.click(screen.getByRole('button', { name: 'Crear almacén' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(
+      await within(dialog).findByText(/El código de almacén ya existe/),
+    ).toBeInTheDocument()
+    // Y el diálogo sigue abierto para poder corregir.
+    expect(within(dialog).getByLabelText('Código')).toBeInTheDocument()
+  })
+
   it('explica el vacío cuando la sede no tiene almacenes', async () => {
     vi.mocked(logisticsApi.warehouses.listByBranch).mockResolvedValue(page([]))
     renderPage(<WarehousesPage />)

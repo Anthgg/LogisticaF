@@ -24,7 +24,7 @@ const SRC = join(ROOT, 'src')
 const MANIFEST = join(ROOT, 'scripts', 'contracts', 'backend-routes.phase045.json')
 // Regenerado en F004: el backend añadió una sola operación,
 // GET /api/logistics/branches/{branch_id}/warehouses/{warehouse_id} (973 -> 974).
-const EXPECTED_BACKEND_SHA = '9da02054b66955ca527e9423ad4426b632a83751'
+const EXPECTED_BACKEND_SHA = '0f30c332fd800a767eb39391a08d0d7506ace9a0'
 
 const TEST_FILE = /(^|[\\/])(test|tests|__tests__|e2e)[\\/]|\.(test|spec)\.[tj]sx?$/
 

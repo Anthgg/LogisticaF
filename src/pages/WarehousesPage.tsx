@@ -359,6 +359,9 @@ export function WarehousesPage() {
         onClose={() => setIsOpen(false)}
         onSubmit={() => void save()}
       >
+        {/* El Alert de la página queda detrás del modal: un 409 de código duplicado
+            se renderizaba donde el usuario no puede verlo. */}
+        {error && <Alert variant="error">{error}</Alert>}
         <div className="form-grid">
           <Input
             label="Organización"

@@ -1,8 +1,8 @@
 {
- "source_backend_sha": "0f30c332fd800a767eb39391a08d0d7506ace9a0",
+ "source_backend_sha": "82750ea4aeba67fdab260747f982f3e4218aa532",
  "source_openapi_version": "0.9.1",
  "generated_from": "http://127.0.0.1:8000/openapi.json",
- "operation_count": 974,
+ "operation_count": 978,
  "operations": [
   {
    "method": "POST",
@@ -1592,6 +1592,26 @@
   {
    "method": "POST",
    "path": "/api/logistics/gate-verification-exceptions/{exception_id}/reject",
+   "query": []
+  },
+  {
+   "method": "GET",
+   "path": "/api/logistics/geography/departments",
+   "query": []
+  },
+  {
+   "method": "GET",
+   "path": "/api/logistics/geography/departments/{department_code}/provinces",
+   "query": []
+  },
+  {
+   "method": "GET",
+   "path": "/api/logistics/geography/districts/{ubigeo_code}",
+   "query": []
+  },
+  {
+   "method": "GET",
+   "path": "/api/logistics/geography/provinces/{province_code}/districts",
    "query": []
   },
   {

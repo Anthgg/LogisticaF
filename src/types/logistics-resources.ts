@@ -34,6 +34,34 @@ export interface OrganizationStatusUpdate {
   status: string
 }
 
+export interface UbigeoHierarchyResponse {
+  code: string
+  department_code: string
+  department_name: string
+  province_code: string
+  province_name: string
+  district_name: string
+  formatted: string
+}
+
+export interface GeoDepartmentResponse {
+  code: string
+  name: string
+}
+
+export interface GeoProvinceResponse {
+  code: string
+  department_code: string
+  name: string
+}
+
+export interface GeoDistrictResponse {
+  code: string
+  province_code: string
+  department_code: string
+  name: string
+}
+
 export interface BranchResponse {
   id: string
   organization_id: string
@@ -41,6 +69,8 @@ export interface BranchResponse {
   name: string
   status: string
   timezone: string
+  ubigeo_code?: string | null
+  ubigeo?: UbigeoHierarchyResponse | null
   address_text: string | null
   latitude: number | null
   longitude: number | null
@@ -53,6 +83,7 @@ export interface BranchCreate {
   code: string
   name: string
   timezone: string
+  ubigeo_code?: string | null
   address_text?: string | null
   latitude?: number | null
   longitude?: number | null
@@ -61,6 +92,7 @@ export interface BranchCreate {
 export interface BranchUpdate {
   name?: string
   timezone?: string
+  ubigeo_code?: string | null
   address_text?: string | null
   latitude?: number | null
   longitude?: number | null

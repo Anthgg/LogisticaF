@@ -6,6 +6,24 @@ export interface PaginatedResponse<T> {
   total_pages: number
 }
 
+/** Catálogos de referencia servidos por el backend (F005.1). Se persiste `code`;
+ *  `name` es solo para mostrar. */
+export interface CountryCatalogItem {
+  code: string
+  name: string
+}
+
+export interface TimezoneCatalogItem {
+  code: string
+  name: string
+  country_code: string
+}
+
+export interface WarehouseTypeCatalogItem {
+  code: string
+  name: string
+}
+
 export interface OrganizationResponse {
   id: string
   code: string
@@ -18,7 +36,8 @@ export interface OrganizationResponse {
 }
 
 export interface OrganizationCreate {
-  code: string
+  /** Opcional: lo genera el backend. La UI nueva no lo envía. */
+  code?: string
   name: string
   country_code: string
   timezone: string
@@ -80,7 +99,8 @@ export interface BranchResponse {
 
 /** `organization_id` viaja en la ruta (`/organizations/{id}/branches`), no en el cuerpo. */
 export interface BranchCreate {
-  code: string
+  /** Opcional: lo genera el backend. La UI nueva no lo envía. */
+  code?: string
   name: string
   timezone: string
   ubigeo_code?: string | null
@@ -130,15 +150,22 @@ export interface LogisticsWarehouseResponse {
  * backend desde la sede: enviarlo no tendría efecto.
  */
 export interface LogisticsWarehouseCreate {
-  code: string
+  /** Opcional: lo genera el backend. La UI nueva no lo envía. */
+  code?: string
   name: string
   warehouse_type: string
-  address: string
-  district: string
-  province: string
-  department: string
+  /** Dirección propia del almacén dentro de la sede, no la de la sede. */
+  address?: string | null
   capacity?: number | null
   is_default?: boolean
+  /**
+   * Solo compatibilidad con clientes antiguos. La ubicación administrativa se
+   * deriva del UBIGEO de la sede: si esta la tiene, el backend ignora lo que
+   * llegue aquí. La UI nueva NO envía estos campos.
+   */
+  district?: string | null
+  province?: string | null
+  department?: string | null
 }
 
 export interface LogisticsWarehouseStatusUpdate {

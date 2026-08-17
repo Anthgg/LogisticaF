@@ -22,9 +22,9 @@ import { fileURLToPath } from 'node:url'
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const SRC = join(ROOT, 'src')
 const MANIFEST = join(ROOT, 'scripts', 'contracts', 'backend-routes.phase045.json')
-// Regenerado en F005: el backend añadió los 5 endpoints de administración de
-// roles (978 -> 983 operaciones).
-const EXPECTED_BACKEND_SHA = '41c91766ef499eec8deca7d04159cda1664f310f'
+// Regenerado en F005.1: el backend añadió los 3 endpoints de catálogos de
+// referencia (983 -> 986 operaciones).
+const EXPECTED_BACKEND_SHA = '2d2ed8a9e43f5593ee4573708b8fe750379ace31'
 
 const TEST_FILE = /(^|[\\/])(test|tests|__tests__|e2e)[\\/]|\.(test|spec)\.[tj]sx?$/
 

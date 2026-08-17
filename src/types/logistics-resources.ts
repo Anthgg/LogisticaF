@@ -161,6 +161,57 @@ export interface RoleResponse {
   updated_at: string
 }
 
+/** Alta de rol personalizado. `is_system` no forma parte del contrato: el backend
+ *  crea siempre roles personalizados. */
+export interface RoleCreate {
+  code: string
+  name: string
+  description: string
+  permission_codes: string[]
+}
+
+/** El código es el identificador estable del rol: no se edita. */
+export interface RoleUpdate {
+  name?: string
+  description?: string
+}
+
+export interface RoleStatusUpdate {
+  status: string
+}
+
+export interface RolePermissionsUpdate {
+  permission_codes: string[]
+}
+
+export interface RoleMatrixRole {
+  id: string
+  code: string
+  name: string
+  role_type: string
+  is_system: boolean
+  status: string
+  permission_codes: string[]
+}
+
+export interface RoleMatrixPermission {
+  code: string
+  name: string
+  description: string
+  /** Segmento de dominio, para agrupar en la UI sin alterar el código canónico. */
+  group: string
+  resource: string
+  action: string
+  is_sensitive: boolean
+  requires_step_up: boolean
+}
+
+export interface RoleMatrixResponse {
+  roles: RoleMatrixRole[]
+  permissions: RoleMatrixPermission[]
+  total_mappings: number
+}
+
 export interface RoleAssignmentResponse {
   id: string
   user_id: string

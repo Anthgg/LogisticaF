@@ -5,9 +5,9 @@ import process from 'node:process'
 
 import { describe, expect, it } from 'vitest'
 
-// Regenerado en F004.5: el backend añadió los 4 endpoints del catálogo
-// geográfico (974 -> 978 operaciones).
-const EXPECTED_BACKEND_SHA = '82750ea4aeba67fdab260747f982f3e4218aa532'
+// Regenerado en F005: el backend añadió los 5 endpoints de administración de
+// roles (978 -> 983 operaciones).
+const EXPECTED_BACKEND_SHA = '41c91766ef499eec8deca7d04159cda1664f310f'
 const manifestPath = resolve(process.cwd(), 'scripts', 'contracts', 'backend-routes.phase045.json')
 const auditPath = resolve(process.cwd(), 'scripts', 'audit-api-contract.mjs')
 

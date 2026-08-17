@@ -24,7 +24,7 @@ const SRC = join(ROOT, 'src')
 const MANIFEST = join(ROOT, 'scripts', 'contracts', 'backend-routes.phase045.json')
 // Regenerado en F005.1: el backend añadió los 3 endpoints de catálogos de
 // referencia (983 -> 986 operaciones).
-const EXPECTED_BACKEND_SHA = '2d2ed8a9e43f5593ee4573708b8fe750379ace31'
+const EXPECTED_BACKEND_SHA = '866aa0f0b662e0e4bb2498b56eaa12591ed9030d'
 
 const TEST_FILE = /(^|[\\/])(test|tests|__tests__|e2e)[\\/]|\.(test|spec)\.[tj]sx?$/
 

@@ -27,6 +27,16 @@ import { BranchesPage } from '../BranchesPage'
 import { OrganizationsPage } from '../OrganizationsPage'
 import { WarehousesPage } from '../WarehousesPage'
 
+vi.mock('../../api/reference-catalogs-api', () => ({
+  referenceCatalogsApi: {
+    listCountries: vi.fn(async () => [{ code: 'PE', name: 'Perú' }]),
+    listTimezones: vi.fn(async () => [
+      { code: 'America/Lima', name: 'Lima', country_code: 'PE' },
+    ]),
+    listWarehouseTypes: vi.fn(async () => [{ code: 'general', name: 'General' }]),
+  },
+}))
+
 vi.mock('../../api/logistics-api', () => ({
   logisticsApi: {
     organizations: {
@@ -240,14 +250,14 @@ describe('BranchesPage', () => {
     await screen.findByText('Sede Lima')
 
     await user.click(screen.getByRole('button', { name: 'Nueva sede' }))
-    await user.type(screen.getByLabelText('Código'), 'AQP')
+    // F005.1 quitó el campo Código: lo genera el backend.
     await user.type(screen.getByLabelText('Nombre'), 'Sede Arequipa')
     await user.click(screen.getByRole('button', { name: 'Crear sede' }))
 
     await waitFor(() =>
       expect(logisticsApi.branches.create).toHaveBeenCalledWith(
         ORG_A.id,
-        expect.objectContaining({ code: 'AQP', name: 'Sede Arequipa' }),
+        expect.objectContaining({ name: 'Sede Arequipa' }),
       ),
     )
     // El formulario nunca expone un campo de UUID de organización.
@@ -333,25 +343,22 @@ describe('WarehousesPage', () => {
     await screen.findByText('Almacén Lima Uno')
 
     await user.click(screen.getByRole('button', { name: 'Nuevo almacén' }))
-    await user.type(screen.getByLabelText('Código'), 'UAT-F004-WH-001')
+    // F005.1: ni código ni geografía manual; la ubicación sale de la sede.
     await user.type(screen.getByLabelText('Nombre'), 'Almacén UAT F004')
-    await user.type(screen.getByLabelText('Dirección'), 'Av. UAT 100')
-    await user.type(screen.getByLabelText('Distrito'), 'Ate')
-    await user.type(screen.getByLabelText('Provincia'), 'Lima')
-    await user.type(screen.getByLabelText('Departamento'), 'Lima')
+    await user.type(screen.getByLabelText('Dirección / referencia'), 'Nave B')
     await user.click(screen.getByRole('button', { name: 'Crear almacén' }))
 
     await waitFor(() => expect(logisticsApi.warehouses.create).toHaveBeenCalled())
     const [branchId, body] = vi.mocked(logisticsApi.warehouses.create).mock.calls[0]
     expect(branchId).toBe(BRANCH.id)
     expect(body).toMatchObject({
-      code: 'UAT-F004-WH-001',
       name: 'Almacén UAT F004',
       warehouse_type: 'general',
-      district: 'Ate',
     })
     expect(body).not.toHaveProperty('organization_id')
     expect(body).not.toHaveProperty('branch_id')
+    expect(body).not.toHaveProperty('code')
+    expect(body).not.toHaveProperty('district')
   })
 
   it('muestra el error de creación dentro del diálogo, no detrás del modal', async () => {
@@ -368,12 +375,7 @@ describe('WarehousesPage', () => {
     await screen.findByText('Almacén Lima Uno')
 
     await user.click(screen.getByRole('button', { name: 'Nuevo almacén' }))
-    await user.type(screen.getByLabelText('Código'), 'WH-LIM-01')
     await user.type(screen.getByLabelText('Nombre'), 'Duplicado')
-    await user.type(screen.getByLabelText('Dirección'), 'Av. Duplicada 200')
-    await user.type(screen.getByLabelText('Distrito'), 'Ate')
-    await user.type(screen.getByLabelText('Provincia'), 'Lima')
-    await user.type(screen.getByLabelText('Departamento'), 'Lima')
     await user.click(screen.getByRole('button', { name: 'Crear almacén' }))
 
     const dialog = await screen.findByRole('dialog')
@@ -381,7 +383,7 @@ describe('WarehousesPage', () => {
       await within(dialog).findByText(/El código de almacén ya existe/),
     ).toBeInTheDocument()
     // Y el diálogo sigue abierto para poder corregir.
-    expect(within(dialog).getByLabelText('Código')).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('Nombre')).toBeInTheDocument()
   })
 
   it('explica el vacío cuando la sede no tiene almacenes', async () => {

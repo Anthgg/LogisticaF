@@ -1,8 +1,8 @@
 {
- "source_backend_sha": "41c91766ef499eec8deca7d04159cda1664f310f",
+ "source_backend_sha": "866aa0f0b662e0e4bb2498b56eaa12591ed9030d",
  "source_openapi_version": "0.9.1",
  "generated_from": "http://127.0.0.1:8000/openapi.json",
- "operation_count": 983,
+ "operation_count": 986,
  "operations": [
   {
    "method": "POST",
@@ -544,6 +544,23 @@
   {
    "method": "POST",
    "path": "/api/logistics/business-partners/duplicate-check",
+   "query": []
+  },
+  {
+   "method": "GET",
+   "path": "/api/logistics/catalogs/countries",
+   "query": []
+  },
+  {
+   "method": "GET",
+   "path": "/api/logistics/catalogs/timezones",
+   "query": [
+    "country_code"
+   ]
+  },
+  {
+   "method": "GET",
+   "path": "/api/logistics/catalogs/warehouse-types",
    "query": []
   },
   {

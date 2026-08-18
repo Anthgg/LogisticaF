@@ -24,6 +24,16 @@ import {
 } from '../../features/logistics-permissions/contexts/logistics-authorization-context'
 import { BranchesPage } from '../BranchesPage'
 
+vi.mock('../../api/reference-catalogs-api', () => ({
+  referenceCatalogsApi: {
+    listCountries: vi.fn(async () => [{ code: 'PE', name: 'Perú' }]),
+    listTimezones: vi.fn(async () => [
+      { code: 'America/Lima', name: 'Lima', country_code: 'PE' },
+    ]),
+    listWarehouseTypes: vi.fn(async () => [{ code: 'general', name: 'General' }]),
+  },
+}))
+
 vi.mock('../../api/logistics-api', () => ({
   logisticsApi: {
     organizations: {
@@ -255,7 +265,7 @@ describe('F004.5 · ubicación normalizada de sede', () => {
     await user.click(screen.getByRole('button', { name: 'Nueva sede' }))
     await waitFor(() => expect(geographyApi.listDepartments).toHaveBeenCalled())
 
-    await user.type(screen.getByLabelText('Código'), 'AQP')
+    // F005.1 quitó el campo Código del formulario.
     await user.type(screen.getByLabelText('Nombre'), 'Sede Nueva')
     await user.selectOptions(screen.getByLabelText('Departamento'), '15')
     await waitFor(() => expect(screen.getByLabelText('Provincia')).toBeEnabled())
@@ -334,7 +344,6 @@ describe('F004.5 · ubicación normalizada de sede', () => {
     renderPage(<BranchesPage />)
     await screen.findByText('Sede Lima')
     await user.click(screen.getByRole('button', { name: 'Nueva sede' }))
-    await user.type(screen.getByLabelText('Código'), 'AQP')
     await user.type(screen.getByLabelText('Nombre'), 'Sede Nueva')
     await user.click(screen.getByRole('button', { name: 'Crear sede' }))
 

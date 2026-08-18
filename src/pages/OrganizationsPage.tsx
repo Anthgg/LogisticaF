@@ -3,6 +3,8 @@ import { logisticsApi } from '../api/logistics-api'
 import { Alert } from '../components/common/Alert'
 import { Button } from '../components/common/Button'
 import { Input } from '../components/common/Input'
+import { CountrySelect, TimezoneSelect } from '../components/logistics/CatalogSelects'
+import { EntityCodeField } from '../components/logistics/EntityCodeField'
 import { OperationsTable, type TableColumn } from '../components/common/OperationsTable'
 import { PageHeader } from '../components/common/PageHeader'
 import { Pagination } from '../components/common/Pagination'
@@ -20,7 +22,7 @@ import type {
 import { getErrorMessage } from '../utils/errors'
 
 const emptyForm: OrganizationCreate = {
-  code: '',
+  // Sin `code`: lo genera el backend. Enviar '' no es lo mismo que omitirlo.
   name: '',
   country_code: 'PE',
   timezone: 'America/Lima',
@@ -73,7 +75,6 @@ export function OrganizationsPage() {
     setForm(
       org
         ? {
-            code: org.code,
             name: org.name,
             country_code: org.country_code,
             timezone: org.timezone,
@@ -176,7 +177,7 @@ export function OrganizationsPage() {
     },
   ]
 
-  const updateText = (key: keyof OrganizationCreate, value: string) =>
+  const updateText = (key: 'name', value: string) =>
     setForm((current) => ({ ...current, [key]: value }))
 
   return (
@@ -230,30 +231,25 @@ export function OrganizationsPage() {
         {/* El Alert de la página queda detrás del modal. */}
         {error && <Alert variant="error">{error}</Alert>}
         <div className="form-grid">
-          <Input
-            label="Código"
-            value={form.code}
-            onChange={(e) => updateText('code', e.target.value)}
-            required
-            disabled={Boolean(editing)}
-          />
+          <EntityCodeField code={editing?.code ?? null} />
           <Input
             label="Nombre"
             value={form.name}
             onChange={(e) => updateText('name', e.target.value)}
             required
           />
-          <Input
-            label="Código de país"
+          <CountrySelect
             value={form.country_code}
-            onChange={(e) => updateText('country_code', e.target.value)}
-            required
+            onChange={(code) =>
+              setForm((current) => ({ ...current, country_code: code }))
+            }
+            disabled={isSaving}
           />
-          <Input
-            label="Zona horaria"
+          <TimezoneSelect
             value={form.timezone}
-            onChange={(e) => updateText('timezone', e.target.value)}
-            required
+            countryCode={form.country_code}
+            onChange={(code) => setForm((current) => ({ ...current, timezone: code }))}
+            disabled={isSaving}
           />
         </div>
       </ResourceDialog>

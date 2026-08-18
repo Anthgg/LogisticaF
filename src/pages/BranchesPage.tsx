@@ -10,6 +10,8 @@ import { QueryBar } from '../components/common/QueryBar'
 import { ResourceDialog } from '../components/common/ResourceDialog'
 import { StatusBadge } from '../components/common/StatusBadge'
 import { PermissionGate } from '../components/logistics/PermissionGate'
+import { TimezoneSelect } from '../components/logistics/CatalogSelects'
+import { EntityCodeField } from '../components/logistics/EntityCodeField'
 import { UbigeoSelector } from '../components/logistics/UbigeoSelector'
 import { useLogisticsAccess } from '../features/logistics-me/hooks/useLogisticsAccess'
 import { LOGISTICS_PERMISSIONS } from '../features/logistics-permissions/logistics-permissions-map'
@@ -22,7 +24,7 @@ import type {
 import { getErrorMessage } from '../utils/errors'
 
 const emptyForm: BranchCreate = {
-  code: '',
+  // Sin `code`: lo genera el backend.
   name: '',
   timezone: 'America/Lima',
   ubigeo_code: null,
@@ -102,7 +104,6 @@ export function BranchesPage() {
     setForm(
       branch
         ? {
-            code: branch.code,
             name: branch.name,
             timezone: branch.timezone,
             ubigeo_code: branch.ubigeo_code ?? null,
@@ -128,7 +129,7 @@ export function BranchesPage() {
       } else {
         // `organization_id` viaja en la ruta; el formulario nunca pide un UUID.
         await logisticsApi.branches.create(selectedOrg, {
-          code: form.code,
+          // El código no viaja: lo genera el backend.
           name: form.name,
           timezone: form.timezone,
           // Solo el codigo canonico: los nombres del catalogo no son fuente de verdad.
@@ -217,7 +218,7 @@ export function BranchesPage() {
     },
   ]
 
-  const updateText = (key: keyof BranchCreate, value: string) =>
+  const updateText = (key: 'name' | 'address_text', value: string) =>
     setForm((current) => ({ ...current, [key]: value }))
 
   const selectedOrgLabel = orgs.find((org) => org.id === selectedOrg)
@@ -319,24 +320,17 @@ export function BranchesPage() {
             readOnly
             disabled
           />
-          <Input
-            label="Código"
-            value={form.code}
-            onChange={(e) => updateText('code', e.target.value)}
-            required
-            disabled={Boolean(editing)}
-          />
+          <EntityCodeField code={editing?.code ?? null} />
           <Input
             label="Nombre"
             value={form.name}
             onChange={(e) => updateText('name', e.target.value)}
             required
           />
-          <Input
-            label="Zona horaria"
+          <TimezoneSelect
             value={form.timezone}
-            onChange={(e) => updateText('timezone', e.target.value)}
-            required
+            onChange={(code) => setForm((current) => ({ ...current, timezone: code }))}
+            disabled={isSaving}
           />
           <Input
             label="Dirección"

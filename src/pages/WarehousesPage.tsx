@@ -10,6 +10,8 @@ import { Pagination } from '../components/common/Pagination'
 import { QueryBar } from '../components/common/QueryBar'
 import { ResourceDialog } from '../components/common/ResourceDialog'
 import { StatusBadge } from '../components/common/StatusBadge'
+import { WarehouseTypeSelect } from '../components/logistics/CatalogSelects'
+import { EntityCodeField } from '../components/logistics/EntityCodeField'
 import { PermissionGate } from '../components/logistics/PermissionGate'
 import { useLogisticsAccess } from '../features/logistics-me/hooks/useLogisticsAccess'
 import { LOGISTICS_PERMISSIONS } from '../features/logistics-permissions/logistics-permissions-map'
@@ -22,27 +24,13 @@ import type {
 } from '../types/logistics-resources'
 import { getErrorMessage } from '../utils/errors'
 
-/**
- * Tipos aceptados por `LogisticsWarehouseCreate.normalize_type` en el backend.
- * En minúscula, que es lo que valida la superficie estructural F004.
- */
-const WAREHOUSE_TYPES = [
-  { value: 'general', label: 'General' },
-  { value: 'receiving', label: 'Recepción' },
-  { value: 'dispatch', label: 'Despacho' },
-  { value: 'quarantine', label: 'Cuarentena' },
-  { value: 'returns', label: 'Devoluciones' },
-  { value: 'transit', label: 'Tránsito' },
-]
 
 const emptyForm: LogisticsWarehouseCreate = {
-  code: '',
+  // Sin `code`: lo genera el backend.
+  // Sin distrito/provincia/departamento: se derivan del UBIGEO de la sede.
   name: '',
   warehouse_type: 'general',
   address: '',
-  district: '',
-  province: '',
-  department: '',
 }
 
 const emptyPage: PaginatedResponse<LogisticsWarehouseResponse> = {
@@ -185,9 +173,7 @@ export function WarehousesPage() {
       {
         key: 'warehouse_type',
         label: 'Tipo',
-        render: (row) =>
-          WAREHOUSE_TYPES.find((t) => t.value === row.warehouse_type)?.label ??
-          row.warehouse_type,
+        render: (row) => row.warehouse_type,
       },
       {
         key: 'address',
@@ -381,61 +367,40 @@ export function WarehousesPage() {
             readOnly
             disabled
           />
-          <Input
-            label="Código"
-            value={form.code}
-            onChange={(e) => updateText('code', e.target.value)}
-            required
-          />
+          <EntityCodeField />
           <Input
             label="Nombre"
             value={form.name}
             onChange={(e) => updateText('name', e.target.value)}
             required
           />
-          <div className="field">
-            <label className="field__label" htmlFor="wh-type-select">
-              Tipo
-            </label>
-            <div className="field__control">
-              <select
-                id="wh-type-select"
-                className="field__input"
-                value={form.warehouse_type}
-                onChange={(e) => updateText('warehouse_type', e.target.value)}
-              >
-                {WAREHOUSE_TYPES.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          <WarehouseTypeSelect
+            value={form.warehouse_type}
+            onChange={(code) =>
+              setForm((current) => ({ ...current, warehouse_type: code }))
+            }
+            disabled={isSaving}
+          />
           <Input
-            label="Dirección"
-            value={form.address}
+            label="Dirección / referencia"
+            value={form.address ?? ''}
             onChange={(e) => updateText('address', e.target.value)}
-            required
+            hint="Ubicación dentro de la sede, por ejemplo «Nave B — Puerta 4»."
           />
-          <Input
-            label="Distrito"
-            value={form.district}
-            onChange={(e) => updateText('district', e.target.value)}
-            required
-          />
-          <Input
-            label="Provincia"
-            value={form.province}
-            onChange={(e) => updateText('province', e.target.value)}
-            required
-          />
-          <Input
-            label="Departamento"
-            value={form.department}
-            onChange={(e) => updateText('department', e.target.value)}
-            required
-          />
+          {/* Distrito, provincia y departamento se derivan del UBIGEO de la sede.
+              Pedirlos aquí permitía registrar un almacén de una sede de Lima
+              declarando Arequipa. */}
+          <div className="field">
+            <span className="field__label">Ubicación de la sede</span>
+            <p className="field__readonly" data-testid="warehouse-inherited-location">
+              {(() => {
+                const branch = branches.find((b) => b.id === selectedBranch)
+                return (
+                  branch?.ubigeo?.formatted ?? 'Pendiente de normalización UBIGEO'
+                )
+              })()}
+            </p>
+          </div>
         </div>
       </ResourceDialog>
 

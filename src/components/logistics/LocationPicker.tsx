@@ -138,7 +138,10 @@ export function LocationPicker({
       }
     } catch (caught: unknown) {
       const isUnavailable =
-        (caught instanceof ApiRequestError && caught.status >= 502 && caught.status <= 504)
+        caught instanceof ApiRequestError &&
+        caught.status !== null &&
+        caught.status >= 502 &&
+        caught.status <= 504
       if (isUnavailable) {
         setSearchError(
           'El servicio de mapas no está disponible temporalmente. Puedes colocar el marcador manualmente.',

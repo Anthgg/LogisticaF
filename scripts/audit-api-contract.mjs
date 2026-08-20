@@ -24,7 +24,7 @@ const SRC = join(ROOT, 'src')
 const MANIFEST = join(ROOT, 'scripts', 'contracts', 'backend-routes.phase045.json')
 // Regenerado en F005.4: el backend añadió los 2 endpoints de geocoding
 // (986 -> 988 operaciones).
-const EXPECTED_BACKEND_SHA = 'feat-005-4-geocoding-endpoints-added'
+const EXPECTED_BACKEND_SHA = 'b442564c80096cd937b331aec65ea06e87a867f7'
 
 const TEST_FILE = /(^|[\\/])(test|tests|__tests__|e2e)[\\/]|\.(test|spec)\.[tj]sx?$/
 

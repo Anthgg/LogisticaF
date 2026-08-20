@@ -21,6 +21,7 @@
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-select": "^2.3.7",
     "clsx": "^2.1.1",
+    "maplibre-gl": "^6.4.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",

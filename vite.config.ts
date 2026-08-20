@@ -46,6 +46,11 @@ export default defineConfig(({ mode }) => {
       css: true,
       include: ['src/**/*.test.{ts,tsx}'],
       exclude: ['e2e/**', 'node_modules/**'],
+      alias: {
+        // Replace maplibre-gl with a jsdom-compatible mock for all tests.
+        // Real maplibre-gl requires WebGL/canvas which is unavailable in jsdom.
+        'maplibre-gl': new URL('./src/test/maplibre-gl-factory.ts', import.meta.url).pathname,
+      },
     },
   }
 })

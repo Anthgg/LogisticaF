@@ -70,6 +70,16 @@ vi.mock('../../api/geography-api', () => ({
   },
 }))
 
+// geocoding-api needed by LocationPicker (rendered inside BranchesPage dialog)
+vi.mock('../../api/geocoding-api', () => ({
+  geocodingApi: {
+    search: vi.fn().mockResolvedValue({ success: true, data: { results: [], count: 0 } }),
+    reverse: vi.fn().mockResolvedValue({ success: true, data: null }),
+  },
+  wgs84ToMapLibreLngLat: (lat: number, lon: number) => [lon, lat],
+  mapLibreLngLatToWgs84: (lngLat: { lng: number; lat: number }) => [lngLat.lat, lngLat.lng],
+}))
+
 const { logisticsApi } = await import('../../api/logistics-api')
 const { geographyApi } = await import('../../api/geography-api')
 

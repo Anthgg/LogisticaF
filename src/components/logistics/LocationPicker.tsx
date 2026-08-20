@@ -474,6 +474,8 @@ export function LocationPicker({
         <LocationMap
           latitude={tempLat}
           longitude={tempLon}
+          addressText={addressDraft}
+          isConfirmed={isConfirmed}
           onLocationChange={(lat, lng) => {
             setTempLat(lat)
             setTempLon(lng)

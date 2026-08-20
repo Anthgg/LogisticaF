@@ -22,9 +22,9 @@ import { fileURLToPath } from 'node:url'
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const SRC = join(ROOT, 'src')
 const MANIFEST = join(ROOT, 'scripts', 'contracts', 'backend-routes.phase045.json')
-// Regenerado en F005.1: el backend añadió los 3 endpoints de catálogos de
-// referencia (983 -> 986 operaciones).
-const EXPECTED_BACKEND_SHA = '866aa0f0b662e0e4bb2498b56eaa12591ed9030d'
+// Regenerado en F005.4: el backend añadió los 2 endpoints de geocoding
+// (986 -> 988 operaciones).
+const EXPECTED_BACKEND_SHA = 'b442564c80096cd937b331aec65ea06e87a867f7'
 
 const TEST_FILE = /(^|[\\/])(test|tests|__tests__|e2e)[\\/]|\.(test|spec)\.[tj]sx?$/
 

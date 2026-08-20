@@ -9,73 +9,81 @@ import { Pagination } from '../components/common/Pagination'
 import { QueryBar } from '../components/common/QueryBar'
 import { ResourceDialog } from '../components/common/ResourceDialog'
 import { StatusBadge } from '../components/common/StatusBadge'
-import { PermissionGate } from '../components/logistics/PermissionGate'
 import { TimezoneSelect } from '../components/logistics/CatalogSelects'
 import { EntityCodeField } from '../components/logistics/EntityCodeField'
+import { LocationPicker, type LocationValue } from '../components/logistics/LocationPicker'
+import { PermissionGate } from '../components/logistics/PermissionGate'
 import { UbigeoSelector } from '../components/logistics/UbigeoSelector'
 import { useLogisticsAccess } from '../features/logistics-me/hooks/useLogisticsAccess'
 import { LOGISTICS_PERMISSIONS } from '../features/logistics-permissions/logistics-permissions-map'
-import type {
-  BranchCreate,
-  BranchResponse,
-  OrganizationResponse,
-  PaginatedResponse,
-} from '../types/logistics-resources'
+import type { BranchResponse, OrganizationResponse, PaginatedResponse } from '../types/logistics-resources'
 import { getErrorMessage } from '../utils/errors'
 
-const emptyForm: BranchCreate = {
-  // Sin `code`: lo genera el backend.
+interface BranchFormData {
+  name: string
+  timezone: string
+  ubigeo_code: string | null
+  address_text: string
+  latitude: number | null
+  longitude: number | null
+}
+
+const emptyForm: BranchFormData = {
   name: '',
   timezone: 'America/Lima',
   ubigeo_code: null,
   address_text: '',
+  latitude: null,
+  longitude: null,
+}
+
+const emptyPage: PaginatedResponse<BranchResponse> = {
+  items: [],
+  total: 0,
+  page: 1,
+  page_size: 20,
+  total_pages: 1,
 }
 
 export function BranchesPage() {
-  const access = useLogisticsAccess()
-  const canCreate = access.hasPermission(LOGISTICS_PERMISSIONS.branches.create)
-  const canUpdate = access.hasPermission(LOGISTICS_PERMISSIONS.branches.update)
-  const canChangeStatus = access.hasPermission(
-    LOGISTICS_PERMISSIONS.branches.changeStatus,
-  )
-  const canManage = canCreate || canUpdate || canChangeStatus
+  const { hasPermission } = useLogisticsAccess()
+  const canUpdate = hasPermission(LOGISTICS_PERMISSIONS.branches.update)
+  const canChangeStatus = hasPermission(LOGISTICS_PERMISSIONS.branches.changeStatus)
+  const canManage = canUpdate || canChangeStatus
 
   const [orgs, setOrgs] = useState<OrganizationResponse[]>([])
-  const [selectedOrg, setSelectedOrg] = useState<string>('')
-  const [data, setData] = useState<PaginatedResponse<BranchResponse>>({
-    items: [],
-    page: 1,
-    page_size: 20,
-    total: 0,
-    total_pages: 0,
-  })
+  const [selectedOrg, setSelectedOrg] = useState('')
+  const [data, setData] = useState<PaginatedResponse<BranchResponse>>(emptyPage)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const [form, setForm] = useState<BranchCreate>(emptyForm)
-  const [editing, setEditing] = useState<BranchResponse | null>(null)
-  const [isOpen, setIsOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const [editing, setEditing] = useState<BranchResponse | null>(null)
+  const [form, setForm] = useState<BranchFormData>(emptyForm)
 
-  useEffect(() => {
-    void logisticsApi.organizations
-      .list({ page: 1, page_size: 100 })
-      .then((res: PaginatedResponse<OrganizationResponse>) => {
-        setOrgs(res.items)
-        if (res.items.length > 0 && !selectedOrg) {
-          setSelectedOrg(res.items[0].id)
-        }
+  const loadOrgs = useCallback(async () => {
+    try {
+      const response = await logisticsApi.organizations.list({
+        page: 1,
+        page_size: 100,
       })
-      .catch(() => undefined)
+      setOrgs(response.items)
+      if (response.items.length > 0 && !selectedOrg) {
+        setSelectedOrg(response.items[0].id)
+      }
+    } catch (caught: unknown) {
+      setError(getErrorMessage(caught))
+    }
   }, [selectedOrg])
 
+  useEffect(() => {
+    void loadOrgs()
+  }, [loadOrgs])
+
   const load = useCallback(async () => {
-    if (!selectedOrg) {
-      setIsLoading(false)
-      return
-    }
+    if (!selectedOrg) return
     setIsLoading(true)
     setError(null)
     try {
@@ -108,6 +116,8 @@ export function BranchesPage() {
             timezone: branch.timezone,
             ubigeo_code: branch.ubigeo_code ?? null,
             address_text: branch.address_text ?? '',
+            latitude: branch.latitude ?? null,
+            longitude: branch.longitude ?? null,
           }
         : emptyForm,
     )
@@ -125,6 +135,8 @@ export function BranchesPage() {
           timezone: form.timezone,
           ubigeo_code: form.ubigeo_code ?? null,
           address_text: form.address_text || null,
+          latitude: form.latitude,
+          longitude: form.longitude,
         })
       } else {
         // `organization_id` viaja en la ruta; el formulario nunca pide un UUID.
@@ -135,6 +147,8 @@ export function BranchesPage() {
           // Solo el codigo canonico: los nombres del catalogo no son fuente de verdad.
           ubigeo_code: form.ubigeo_code ?? null,
           address_text: form.address_text || null,
+          latitude: form.latitude,
+          longitude: form.longitude,
         })
       }
       setIsOpen(false)
@@ -218,7 +232,7 @@ export function BranchesPage() {
     },
   ]
 
-  const updateText = (key: 'name' | 'address_text', value: string) =>
+  const updateText = (key: 'name', value: string) =>
     setForm((current) => ({ ...current, [key]: value }))
 
   const selectedOrgLabel = orgs.find((org) => org.id === selectedOrg)
@@ -332,11 +346,6 @@ export function BranchesPage() {
             onChange={(code) => setForm((current) => ({ ...current, timezone: code }))}
             disabled={isSaving}
           />
-          <Input
-            label="Dirección"
-            value={form.address_text ?? ''}
-            onChange={(e) => updateText('address_text', e.target.value)}
-          />
         </div>
 
         {/* La división administrativa y la dirección humana son cosas distintas:
@@ -348,6 +357,26 @@ export function BranchesPage() {
           onChange={(ubigeoCode) =>
             setForm((current) => ({ ...current, ubigeo_code: ubigeoCode }))
           }
+          disabled={isSaving}
+        />
+
+        {/* Dirección y Geolocalización */}
+        <h4 className="field__label">Dirección y ubicación en mapa</h4>
+        <LocationPicker
+          value={{
+            address: form.address_text,
+            latitude: form.latitude,
+            longitude: form.longitude,
+          }}
+          onChange={(loc: LocationValue) =>
+            setForm((current) => ({
+              ...current,
+              address_text: loc.address,
+              latitude: loc.latitude,
+              longitude: loc.longitude,
+            }))
+          }
+          ubigeoCode={form.ubigeo_code ?? null}
           disabled={isSaving}
         />
       </ResourceDialog>

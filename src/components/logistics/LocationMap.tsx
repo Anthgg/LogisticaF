@@ -158,6 +158,7 @@ export function LocationMap({
             const [lat, lng] = mapLibreLngLatToWgs84(e.lngLat)
             marker.setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map)
             onLocationChange?.(lat, lng)
+            onDragEnd?.(lat, lng)
           })
         }
 

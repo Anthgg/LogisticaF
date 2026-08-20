@@ -92,6 +92,71 @@ export function mapLibreLngLatToWgs84(lngLat: { lng: number; lat: number }): [nu
   return [lngLat.lat, lngLat.lng]
 }
 
+/**
+ * Canonical helper to construct a human-friendly address from structured postal components.
+ * Prioritizes: road + house_number, neighbourhood/suburb, district, province/city, department, country.
+ * Eliminates redundant locality names (e.g. "Miraflores, Miraflores, Lima, Lima").
+ */
+export function buildHumanAddress(
+  addr: GeocodeAddressDTO | null | undefined,
+  fallbackDisplayName?: string,
+  manualHouseNumber?: string
+): string {
+  if (!addr) {
+    return fallbackDisplayName || ''
+  }
+
+  const parts: string[] = []
+
+  // 1. Street / Road + House Number
+  const streetName = (addr.road || '').trim()
+  const houseNum = (manualHouseNumber || addr.house_number || '').trim()
+
+  if (streetName && houseNum) {
+    parts.push(`${streetName} ${houseNum}`)
+  } else if (streetName) {
+    parts.push(streetName)
+  } else if (houseNum) {
+    parts.push(`N° ${houseNum}`)
+  }
+
+  // 2. Neighbourhood / Urbanización / Sector
+  const urb = (addr.neighbourhood || addr.suburb || '').trim()
+  if (urb && !parts.some((p) => p.toLowerCase() === urb.toLowerCase())) {
+    parts.push(urb)
+  }
+
+  // 3. District
+  const district = (addr.district || '').trim()
+  if (district && !parts.some((p) => p.toLowerCase() === district.toLowerCase())) {
+    parts.push(district)
+  }
+
+  // 4. Province / City
+  const prov = (addr.province || addr.city || '').trim()
+  if (prov && !parts.some((p) => p.toLowerCase() === prov.toLowerCase())) {
+    parts.push(prov)
+  }
+
+  // 5. Department
+  const dept = (addr.department || '').trim()
+  if (dept && !parts.some((p) => p.toLowerCase() === dept.toLowerCase())) {
+    parts.push(dept)
+  }
+
+  // 6. Country
+  const country = (addr.country || 'Perú').trim()
+  if (country && !parts.some((p) => p.toLowerCase() === country.toLowerCase())) {
+    parts.push(country)
+  }
+
+  if (parts.length === 0) {
+    return fallbackDisplayName || ''
+  }
+
+  return parts.join(', ')
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // API calls
 // ──────────────────────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { logisticsApi } from '../api/logistics-api'
 import { Alert } from '../components/common/Alert'
 import { Button } from '../components/common/Button'
@@ -9,25 +9,26 @@ import { Pagination } from '../components/common/Pagination'
 import { QueryBar } from '../components/common/QueryBar'
 import { ResourceDialog } from '../components/common/ResourceDialog'
 import { StatusBadge } from '../components/common/StatusBadge'
-import { PermissionGate } from '../components/logistics/PermissionGate'
 import { TimezoneSelect } from '../components/logistics/CatalogSelects'
 import { EntityCodeField } from '../components/logistics/EntityCodeField'
+import { LocationPicker, type LocationValue } from '../components/logistics/LocationPicker'
+import { PermissionGate } from '../components/logistics/PermissionGate'
 import { UbigeoSelector } from '../components/logistics/UbigeoSelector'
-import { LocationPicker } from '../components/logistics/LocationPicker'
-import type { LocationValue } from '../components/logistics/LocationPicker'
-import { SearchableCombobox, type ComboboxOption } from '../components/ui/SearchableCombobox'
 import { useLogisticsAccess } from '../features/logistics-me/hooks/useLogisticsAccess'
 import { LOGISTICS_PERMISSIONS } from '../features/logistics-permissions/logistics-permissions-map'
-import type {
-  BranchCreate,
-  BranchResponse,
-  OrganizationResponse,
-  PaginatedResponse,
-} from '../types/logistics-resources'
+import type { BranchResponse, OrganizationResponse, PaginatedResponse } from '../types/logistics-resources'
 import { getErrorMessage } from '../utils/errors'
 
-const emptyForm: BranchCreate = {
-  // Sin `code`: lo genera el backend.
+interface BranchFormData {
+  name: string
+  timezone: string
+  ubigeo_code: string | null
+  address_text: string
+  latitude: number | null
+  longitude: number | null
+}
+
+const emptyForm: BranchFormData = {
   name: '',
   timezone: 'America/Lima',
   ubigeo_code: null,
@@ -36,51 +37,53 @@ const emptyForm: BranchCreate = {
   longitude: null,
 }
 
+const emptyPage: PaginatedResponse<BranchResponse> = {
+  items: [],
+  total: 0,
+  page: 1,
+  page_size: 20,
+  total_pages: 1,
+}
+
 export function BranchesPage() {
-  const access = useLogisticsAccess()
-  const canCreate = access.hasPermission(LOGISTICS_PERMISSIONS.branches.create)
-  const canUpdate = access.hasPermission(LOGISTICS_PERMISSIONS.branches.update)
-  const canChangeStatus = access.hasPermission(
-    LOGISTICS_PERMISSIONS.branches.changeStatus,
-  )
-  const canManage = canCreate || canUpdate || canChangeStatus
+  const { hasPermission } = useLogisticsAccess()
+  const canUpdate = hasPermission(LOGISTICS_PERMISSIONS.branches.update)
+  const canChangeStatus = hasPermission(LOGISTICS_PERMISSIONS.branches.changeStatus)
+  const canManage = canUpdate || canChangeStatus
 
   const [orgs, setOrgs] = useState<OrganizationResponse[]>([])
-  const [selectedOrg, setSelectedOrg] = useState<string>('')
-  const [data, setData] = useState<PaginatedResponse<BranchResponse>>({
-    items: [],
-    page: 1,
-    page_size: 20,
-    total: 0,
-    total_pages: 0,
-  })
+  const [selectedOrg, setSelectedOrg] = useState('')
+  const [data, setData] = useState<PaginatedResponse<BranchResponse>>(emptyPage)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const [form, setForm] = useState<BranchCreate>(emptyForm)
-  const [editing, setEditing] = useState<BranchResponse | null>(null)
-  const [isOpen, setIsOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const [editing, setEditing] = useState<BranchResponse | null>(null)
+  const [form, setForm] = useState<BranchFormData>(emptyForm)
 
-  useEffect(() => {
-    void logisticsApi.organizations
-      .list({ page: 1, page_size: 100 })
-      .then((res: PaginatedResponse<OrganizationResponse>) => {
-        setOrgs(res.items)
-        if (res.items.length > 0 && !selectedOrg) {
-          setSelectedOrg(res.items[0].id)
-        }
+  const loadOrgs = useCallback(async () => {
+    try {
+      const response = await logisticsApi.organizations.list({
+        page: 1,
+        page_size: 100,
       })
-      .catch(() => undefined)
+      setOrgs(response.items)
+      if (response.items.length > 0 && !selectedOrg) {
+        setSelectedOrg(response.items[0].id)
+      }
+    } catch (caught: unknown) {
+      setError(getErrorMessage(caught))
+    }
   }, [selectedOrg])
 
+  useEffect(() => {
+    void loadOrgs()
+  }, [loadOrgs])
+
   const load = useCallback(async () => {
-    if (!selectedOrg) {
-      setIsLoading(false)
-      return
-    }
+    if (!selectedOrg) return
     setIsLoading(true)
     setError(null)
     try {
@@ -102,7 +105,6 @@ export function BranchesPage() {
     const timer = window.setTimeout(() => void load(), 250)
     return () => window.clearTimeout(timer)
   }, [load])
-
 
   const openDialog = (branch?: BranchResponse) => {
     setError(null)
@@ -133,8 +135,8 @@ export function BranchesPage() {
           timezone: form.timezone,
           ubigeo_code: form.ubigeo_code ?? null,
           address_text: form.address_text || null,
-          latitude: form.latitude ?? null,
-          longitude: form.longitude ?? null,
+          latitude: form.latitude,
+          longitude: form.longitude,
         })
       } else {
         // `organization_id` viaja en la ruta; el formulario nunca pide un UUID.
@@ -145,8 +147,8 @@ export function BranchesPage() {
           // Solo el codigo canonico: los nombres del catalogo no son fuente de verdad.
           ubigeo_code: form.ubigeo_code ?? null,
           address_text: form.address_text || null,
-          latitude: form.latitude ?? null,
-          longitude: form.longitude ?? null,
+          latitude: form.latitude,
+          longitude: form.longitude,
         })
       }
       setIsOpen(false)
@@ -158,7 +160,6 @@ export function BranchesPage() {
       setIsSaving(false)
     }
   }
-
 
   const toggleStatus = async (branch: BranchResponse) => {
     setError(null)
@@ -177,36 +178,28 @@ export function BranchesPage() {
       key: 'name',
       label: 'Sede',
       render: (row) => (
-        <div className="flex flex-col min-w-0">
-          <strong className="font-semibold text-slate-900 text-xs truncate">{row.name}</strong>
-          <span className="font-mono text-[10px] text-slate-400 mt-0.5">{row.code}</span>
+        <div className="table-primary">
+          <strong>{row.name}</strong>
+          <small>{row.code}</small>
         </div>
       ),
     },
     {
       key: 'ubigeo',
       label: 'Ubicación',
-      render: (row) => (
-        <span className="text-slate-700 text-xs">
-          {row.ubigeo?.formatted ?? (
-            <span className="text-slate-400 italic">Pendiente de normalizar</span>
-          )}
-        </span>
-      ),
+      render: (row) =>
+        // El backend ya resuelve la jerarquía; se muestra legible, no el código.
+        row.ubigeo?.formatted ?? 'Pendiente de normalizar',
     },
     {
       key: 'address_text',
       label: 'Dirección',
-      render: (row) => (
-        <span className="text-slate-600 text-xs truncate max-w-[280px] block">
-          {row.address_text ?? 'No definida'}
-        </span>
-      ),
+      render: (row) => row.address_text ?? 'No definida',
     },
     {
       key: 'timezone',
       label: 'Zona horaria',
-      render: (row) => <span className="text-slate-600 text-xs">{row.timezone}</span>,
+      render: (row) => row.timezone,
     },
     {
       key: 'status',
@@ -223,23 +216,14 @@ export function BranchesPage() {
       align: 'right',
       render: (row) =>
         canManage && (
-          <div className="flex items-center justify-end gap-1">
+          <div className="table-actions">
             {canUpdate && (
               <Button size="small" variant="ghost" onClick={() => openDialog(row)}>
                 Editar
               </Button>
             )}
             {canChangeStatus && (
-              <Button
-                size="small"
-                variant="ghost"
-                className={
-                  row.status === 'active'
-                    ? 'text-rose-600 hover:text-rose-700 hover:bg-rose-50'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }
-                onClick={() => void toggleStatus(row)}
-              >
+              <Button size="small" variant="ghost" onClick={() => void toggleStatus(row)}>
                 {row.status === 'active' ? 'Desactivar' : 'Activar'}
               </Button>
             )}
@@ -253,22 +237,12 @@ export function BranchesPage() {
 
   const selectedOrgLabel = orgs.find((org) => org.id === selectedOrg)
 
-  const orgOptions: ComboboxOption[] = useMemo(
-    () =>
-      orgs.map((org) => ({
-        value: org.id,
-        label: org.name,
-        code: org.code,
-      })),
-    [orgs],
-  )
-
   return (
-    <div className="w-full space-y-3">
+    <div className="page">
       <PageHeader
         eyebrow="Estructura organizacional"
         title="Sedes"
-        description="Gestiona las sedes por organización de la red logística."
+        description="Gestiona las sedes por organización."
         actions={
           <PermissionGate permission={LOGISTICS_PERMISSIONS.branches.create}>
             <Button disabled={!selectedOrg} onClick={() => openDialog()}>
@@ -277,76 +251,66 @@ export function BranchesPage() {
           </PermissionGate>
         }
       />
-
       {error && <Alert variant="error">{error}</Alert>}
-
-      {/* Toolbar Horizontal de Filtros y Búsqueda */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="w-full sm:w-72">
-          <SearchableCombobox
-            id="branches-org-filter"
+      <section className="panel operations-section">
+        <div className="flex items-center gap-3 mb-4">
+          <label htmlFor="org-select" className="text-sm font-medium text-slate-700">
+            Organización:
+          </label>
+          <select
+            id="org-select"
+            className="field__input"
             value={selectedOrg}
-            options={orgOptions}
-            onChange={(val) => {
-              setSelectedOrg(val)
+            onChange={(e) => {
+              setSelectedOrg(e.target.value)
               setPage(1)
             }}
-            placeholder="Selecciona una organización"
-            searchPlaceholder="Buscar organización..."
-            emptyMessage="Sin organizaciones"
-          />
+            disabled={isLoading}
+          >
+            <option value="">Selecciona una organización</option>
+            {orgs.map((org) => (
+              <option key={org.id} value={org.id}>
+                {org.name} ({org.code})
+              </option>
+            ))}
+          </select>
         </div>
-
-        {selectedOrg && (
-          <div className="flex-1 min-w-[260px] max-w-[420px]">
+        {selectedOrg ? (
+          <>
             <QueryBar
               search={search}
-              placeholder="Buscar sede por nombre o código…"
               onSearch={(value) => {
                 setSearch(value)
                 setPage(1)
               }}
-              className="!mb-0"
             />
-          </div>
-        )}
-      </div>
-
-      {selectedOrg ? (
-        <div className="w-full">
-          {isLoading ? (
-            <div className="flex min-h-[220px] flex-col items-center justify-center gap-2 text-xs text-slate-500">
-              <span className="spinner" />
-              <p>Cargando sedes…</p>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-slate-200/90 bg-white overflow-hidden shadow-xs">
+            {isLoading ? (
+              <div className="loading-panel">
+                <span className="spinner" />
+                <p>Cargando sedes…</p>
+              </div>
+            ) : (
               <OperationsTable
                 rows={data.items}
                 columns={columns}
                 getRowKey={(row) => row.id}
-                emptyMessage="No hay sedes registradas en esta organización."
               />
-            </div>
-          )}
-
-          <Pagination
-            page={data.page}
-            totalPages={data.total_pages}
-            total={data.total}
-            pageSize={data.page_size}
-            onPageChange={setPage}
-          />
-        </div>
-      ) : (
-        <div className="flex min-h-[160px] flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50/50 p-6 text-center text-xs text-slate-500">
-          <p>Selecciona una organización en la barra superior para ver sus sedes.</p>
-        </div>
-      )}
-
+            )}
+            <Pagination
+              page={data.page}
+              totalPages={data.total_pages}
+              total={data.total}
+              onPageChange={setPage}
+            />
+          </>
+        ) : (
+          <div className="loading-panel">
+            <p>Selecciona una organización para ver sus sedes.</p>
+          </div>
+        )}
+      </section>
       <ResourceDialog
         isOpen={isOpen}
-        maxWidth="max-w-[700px]"
         title={editing ? 'Editar sede' : 'Nueva sede'}
         submitLabel={editing ? 'Guardar cambios' : 'Crear sede'}
         isSubmitting={isSaving}
@@ -356,91 +320,65 @@ export function BranchesPage() {
         }}
         onSubmit={() => void save()}
       >
+        {/* El Alert de la página queda detrás del modal: un 409 de código duplicado
+            se renderizaba donde el usuario no puede verlo. */}
         {error && <Alert variant="error">{error}</Alert>}
-
-        <div className="space-y-4">
-          {/* Fila superior: Organización de contexto & Código */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="field">
-              <span className="field__label">Organización</span>
-              <div className="field__readonly">
-                {selectedOrgLabel
-                  ? `${selectedOrgLabel.name} (${selectedOrgLabel.code})`
-                  : 'Sin organización seleccionada'}
-              </div>
-            </div>
-
-            <EntityCodeField code={editing?.code ?? null} />
-          </div>
-
-          {/* Información general */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              label="Nombre"
-              value={form.name}
-              onChange={(e) => updateText('name', e.target.value)}
-              placeholder="Ej: Sede Central Trujillo"
-              required
-            />
-
-            <TimezoneSelect
-              value={form.timezone}
-              onChange={(code) => setForm((current) => ({ ...current, timezone: code }))}
-              disabled={isSaving}
-            />
-          </div>
-
-          {/* Ubicación Administrativa */}
-          <div className="pt-2 border-t border-slate-100">
-            <div className="mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Ubicación administrativa
-              </span>
-              <p className="text-[11px] text-slate-400">
-                El UBIGEO identifica el distrito oficial para operaciones y fiscalización.
-              </p>
-            </div>
-            <UbigeoSelector
-              value={form.ubigeo_code ?? null}
-              resolved={editing?.ubigeo ?? null}
-              onChange={(ubigeoCode) =>
-                setForm((current) => ({ ...current, ubigeo_code: ubigeoCode }))
-              }
-              disabled={isSaving}
-            />
-          </div>
-
-          {/* Dirección y Geolocalización */}
-          <div className="pt-2 border-t border-slate-100">
-            <div className="mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Dirección y ubicación en mapa
-              </span>
-              <p className="text-[11px] text-slate-400">
-                Ingresa la dirección y localízala en el mapa. Puedes ajustar el marcador
-                manualmente.
-              </p>
-            </div>
-            <LocationPicker
-              value={{
-                address: form.address_text ?? '',
-                latitude: form.latitude ?? null,
-                longitude: form.longitude ?? null,
-              }}
-              onChange={(loc: LocationValue) =>
-                setForm((current) => ({
-                  ...current,
-                  address_text: loc.address,
-                  latitude: loc.latitude,
-                  longitude: loc.longitude,
-                }))
-              }
-              ubigeoCode={form.ubigeo_code ?? null}
-              disabled={isSaving}
-            />
-          </div>
+        <div className="form-grid">
+          <Input
+            label="Organización"
+            value={
+              selectedOrgLabel
+                ? `${selectedOrgLabel.name} (${selectedOrgLabel.code})`
+                : ''
+            }
+            readOnly
+            disabled
+          />
+          <EntityCodeField code={editing?.code ?? null} />
+          <Input
+            label="Nombre"
+            value={form.name}
+            onChange={(e) => updateText('name', e.target.value)}
+            required
+          />
+          <TimezoneSelect
+            value={form.timezone}
+            onChange={(code) => setForm((current) => ({ ...current, timezone: code }))}
+            disabled={isSaving}
+          />
         </div>
 
+        {/* La división administrativa y la dirección humana son cosas distintas:
+            el UBIGEO identifica el distrito, la dirección dice dónde está la puerta. */}
+        <h4 className="field__label">Ubicación administrativa</h4>
+        <UbigeoSelector
+          value={form.ubigeo_code ?? null}
+          resolved={editing?.ubigeo ?? null}
+          onChange={(ubigeoCode) =>
+            setForm((current) => ({ ...current, ubigeo_code: ubigeoCode }))
+          }
+          disabled={isSaving}
+        />
+
+        {/* Dirección y Geolocalización */}
+        <h4 className="field__label">Dirección y ubicación en mapa</h4>
+        <LocationPicker
+          value={{
+            address: form.address_text,
+            latitude: form.latitude,
+            longitude: form.longitude,
+          }}
+          onChange={(loc: LocationValue) =>
+            setForm((current) => ({
+              ...current,
+              address_text: loc.address,
+              latitude: loc.latitude,
+              longitude: loc.longitude,
+            }))
+          }
+          ubigeoCode={form.ubigeo_code ?? null}
+          disabled={isSaving}
+        />
       </ResourceDialog>
     </div>
   )

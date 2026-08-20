@@ -1,13 +1,69 @@
+export class MockPopup {
+  private _content = ''
+  private _isOpen = false
+  public element: HTMLElement
+
+  constructor(_options?: any) {
+    this.element = document.createElement('div')
+    this.element.className = 'maplibregl-popup'
+  }
+
+  setHTML(html: string) {
+    this._content = html
+    this.element.innerHTML = html
+    return this
+  }
+
+  getHTML() {
+    return this._content
+  }
+
+  setDOMContent(node: HTMLElement) {
+    this.element.replaceChildren(node)
+    return this
+  }
+
+  setText(text: string) {
+    this.element.textContent = text
+    return this
+  }
+
+  addTo(map: MockMap) {
+    this._isOpen = true
+    if (map && (map as any)._container) {
+      ;(map as any)._container.appendChild(this.element)
+    }
+    return this
+  }
+
+  remove() {
+    this._isOpen = false
+    this.element.remove()
+    return this
+  }
+
+  isOpen() {
+    return this._isOpen
+  }
+}
+
 export class MockMarker {
   private _lngLat: { lng: number; lat: number } = { lng: 0, lat: 0 }
   private _draggable = false
   private _listeners: Record<string, Function[]> = {}
+  private _popup: MockPopup | null = null
+  private _map: MockMap | null = null
   public element: HTMLElement
 
   constructor(options?: { draggable?: boolean; color?: string; element?: HTMLElement }) {
     this._draggable = options?.draggable ?? false
-    this.element = options?.element ?? document.createElement('div')
-    this.element.className = 'maplibregl-marker'
+    if (options?.element) {
+      this.element = options.element
+      this.element.classList.add('maplibregl-marker')
+    } else {
+      this.element = document.createElement('div')
+      this.element.className = 'maplibregl-marker'
+    }
   }
 
   setLngLat(lngLat: [number, number] | { lng: number; lat: number }) {
@@ -23,12 +79,39 @@ export class MockMarker {
     return { ...this._lngLat }
   }
 
-  addTo(_map: MockMap) {
+  addTo(map: MockMap) {
+    this._map = map
+    if (map && (map as any)._container) {
+      ;(map as any)._container.appendChild(this.element)
+    }
     return this
   }
 
   remove() {
     this._listeners = {}
+    this.element.remove()
+    this._popup?.remove()
+    this._map = null
+    return this
+  }
+
+  setPopup(popup: MockPopup) {
+    this._popup = popup
+    return this
+  }
+
+  getPopup() {
+    return this._popup
+  }
+
+  togglePopup() {
+    if (this._popup && this._map) {
+      if (this._popup.isOpen()) {
+        this._popup.remove()
+      } else {
+        this._popup.addTo(this._map)
+      }
+    }
     return this
   }
 
@@ -164,6 +247,7 @@ export class MockNavigationControl {
 export const mockMapLibre = {
   Map: MockMap,
   Marker: MockMarker,
+  Popup: MockPopup,
   NavigationControl: MockNavigationControl,
   supported: () => true,
 }

@@ -74,21 +74,19 @@ function createCustomPinElement(isConfirmed: boolean, interactive: boolean): HTM
   const primaryColor = isConfirmed ? '#059669' : '#2563eb'
   const strokeColor = isConfirmed ? '#047857' : '#1d4ed8'
 
-  el.style.cssText = `
-    width: 32px;
-    height: 38px;
-    cursor: ${interactive ? 'grab' : 'default'};
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    filter: drop-shadow(0 2px 5px rgba(0,0,0,0.35));
-    user-select: none;
-    transform: translateZ(0);
-    outline: none;
-  `
+  el.style.width = '32px'
+  el.style.height = '38px'
+  el.style.cursor = interactive ? 'grab' : 'default'
+  el.style.display = 'flex'
+  el.style.alignItems = 'center'
+  el.style.justifyContent = 'center'
+  el.style.userSelect = 'none'
+  el.style.outline = 'none'
+  el.style.pointerEvents = 'auto'
+  el.style.zIndex = '10'
 
   el.innerHTML = `
-    <svg width="32" height="38" viewBox="0 0 32 38" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <svg width="32" height="38" viewBox="0 0 32 38" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:block;filter:drop-shadow(0 2px 5px rgba(0,0,0,0.35));pointer-events:none;">
       <path d="M16 0C7.16344 0 0 7.16344 0 16C0 26.5 14.2 36.8 14.8 37.3C15.15 37.55 15.57 37.7 16 37.7C16.43 37.7 16.85 37.55 17.2 37.3C17.8 36.8 32 26.5 32 16C32 7.16344 24.8366 0 16 0Z"
             fill="${primaryColor}"
             stroke="${strokeColor}"
@@ -214,10 +212,11 @@ export function LocationMap({
   const popupRef = useRef<MapLibrePopup | null>(null)
   const pinElementRef = useRef<HTMLElement | null>(null)
 
+  const propsRef = useRef({ latitude, longitude, zoom, addressText, isConfirmed })
+  propsRef.current = { latitude, longitude, zoom, addressText, isConfirmed }
+
   const [mapError, setMapError] = useState<string | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
-
-  const hasCoords = latitude != null && longitude != null
 
   // ── Initialize Map ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -230,8 +229,10 @@ export function LocationMap({
         const { Map, Marker, Popup, NavigationControl } = await import('maplibre-gl')
         if (cancelled || !containerRef.current) return
 
-        const center: [number, number] = hasCoords
-          ? wgs84ToMapLibreLngLat(latitude!, longitude!)
+        const curProps = propsRef.current
+        const initialCoords = curProps.latitude != null && curProps.longitude != null
+        const center: [number, number] = initialCoords
+          ? wgs84ToMapLibreLngLat(curProps.latitude!, curProps.longitude!)
           : DEFAULT_CENTER_PERU
 
         const style = resolveStyleUrl(styleUrl)
@@ -241,14 +242,17 @@ export function LocationMap({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           style: style as any,
           center,
-          zoom: hasCoords ? zoom : 6,
+          zoom: initialCoords ? (curProps.zoom ?? zoom) : 6,
           interactive,
         })
 
         map.addControl(new NavigationControl({ showCompass: false }), 'top-right')
 
         map.on('load', () => {
-          if (!cancelled) setIsLoaded(true)
+          if (!cancelled) {
+            setIsLoaded(true)
+            map.resize()
+          }
         })
 
         map.on('error', () => {
@@ -256,7 +260,7 @@ export function LocationMap({
         })
 
         // ── Custom Marker and Popup ─────────────────────────────────────────
-        const pinEl = createCustomPinElement(isConfirmed, interactive)
+        const pinEl = createCustomPinElement(curProps.isConfirmed ?? false, interactive)
         pinElementRef.current = pinEl
 
         const popup = new Popup({
@@ -273,10 +277,10 @@ export function LocationMap({
           anchor: 'bottom',
         })
 
-        if (hasCoords) {
-          const lngLat = wgs84ToMapLibreLngLat(latitude!, longitude!)
+        if (initialCoords) {
+          const lngLat = wgs84ToMapLibreLngLat(curProps.latitude!, curProps.longitude!)
           marker.setLngLat(lngLat)
-          popup.setHTML(buildPopupHtml(addressText, latitude!, longitude!, isConfirmed))
+          popup.setHTML(buildPopupHtml(curProps.addressText, curProps.latitude!, curProps.longitude!, curProps.isConfirmed ?? false))
           marker.setPopup(popup)
           marker.addTo(map)
         }
@@ -314,7 +318,7 @@ export function LocationMap({
             const [lat, lng] = mapLibreLngLatToWgs84(e.lngLat)
             marker.setLngLat([e.lngLat.lng, e.lngLat.lat])
             if (popupRef.current) {
-              popupRef.current.setHTML(buildPopupHtml(addressText, lat, lng, false))
+              popupRef.current.setHTML(buildPopupHtml(propsRef.current.addressText, lat, lng, false))
               marker.setPopup(popupRef.current)
             }
             marker.addTo(map)
@@ -325,6 +329,18 @@ export function LocationMap({
 
         mapRef.current = map
         markerRef.current = marker
+
+        // Handle case where coords arrived while initMap was in flight
+        if (!initialCoords && propsRef.current.latitude != null && propsRef.current.longitude != null) {
+          const lat = propsRef.current.latitude
+          const lon = propsRef.current.longitude
+          const lngLat = wgs84ToMapLibreLngLat(lat, lon)
+          marker.setLngLat(lngLat)
+          popup.setHTML(buildPopupHtml(propsRef.current.addressText, lat, lon, propsRef.current.isConfirmed ?? false))
+          marker.setPopup(popup)
+          marker.addTo(map)
+          map.flyTo({ center: lngLat, zoom: propsRef.current.zoom ?? DEFAULT_ZOOM, duration: 500 })
+        }
       } catch {
         if (!cancelled) setMapError('No se pudo inicializar el mapa.')
       }
@@ -365,6 +381,7 @@ export function LocationMap({
 
       // Center map smoothly around the marker
       map.flyTo({ center: lngLat, zoom: zoom ?? DEFAULT_ZOOM, duration: 500 })
+      map.resize()
     } else {
       // Remove marker if coordinates are cleared
       marker.remove()

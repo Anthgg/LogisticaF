@@ -1,22 +1,18 @@
 /**
- * LocationPicker — F005.4
+ * LocationPicker — F005.4 / F005.4.1 (Location Picker Precision)
  *
- * Reusable address + map widget that:
- *  - Shows address input and "Ubicar en mapa" button (no per-keystroke search)
- *  - Calls backend geocoding/search endpoint
- *  - Shows multiple candidate results when available
- *  - Shows interactive LocationMap with draggable marker
- *  - Shows manual coordinate inputs (editable for advanced users)
- *  - Runs optional reverse geocoding on dragend / click
- *  - Supports "Usar mi ubicación" (browser Geolocation API)
- *  - Falls back gracefully if geocoder is unavailable
- *
- * Props are generic — not coupled to Branch. Can be reused for HR, routes, etc.
+ * Exact map selection, structured human address builder, house number fallback,
+ * non-destructive reverse geocoding suggestions, UBIGEO mismatch validation,
+ * and explicit location confirmation workflow before updating the parent Branch form.
  */
 
-import { useCallback, useState } from 'react'
-import { geocodingApi } from '../../api/geocoding-api'
-import type { GeocodeLocationResultDTO } from '../../api/geocoding-api'
+import { useCallback, useEffect, useId, useState } from 'react'
+import {
+  buildHumanAddress,
+  geocodingApi,
+  type GeocodeAddressDTO,
+  type GeocodeLocationResultDTO,
+} from '../../api/geocoding-api'
 import { ApiRequestError } from '../../types/api'
 import { Alert } from '../common/Alert'
 import { Button } from '../common/Button'
@@ -44,8 +40,10 @@ export interface LocationPickerProps {
   maxResults?: number
 }
 
+type LocationSource = 'geocoding' | 'map' | 'manual' | 'initial'
+
 // ──────────────────────────────────────────────────────────────────────────────
-// Helpers
+// Coordinate Display Input Helper
 // ──────────────────────────────────────────────────────────────────────────────
 
 function CoordinateDisplay({
@@ -97,30 +95,62 @@ export function LocationPicker({
   disabled = false,
   maxResults = 5,
 }: LocationPickerProps) {
+  const houseNumberInputId = useId()
+
+  // Coordinate and address state (draft vs confirmed)
+  const [tempLat, setTempLat] = useState<number | null>(value.latitude)
+  const [tempLon, setTempLon] = useState<number | null>(value.longitude)
+  const [addressDraft, setAddressDraft] = useState<string>(value.address)
+  const [houseNumber, setHouseNumber] = useState<string>('')
+  const [addressComponents, setAddressComponents] = useState<GeocodeAddressDTO | null>(null)
+
+  // Status & confirmation
+  const [isConfirmed, setIsConfirmed] = useState<boolean>(
+    value.latitude != null && value.longitude != null
+  )
+  const [, setSource] = useState<LocationSource>(
+    value.latitude != null && value.longitude != null ? 'initial' : 'manual'
+  )
+
+  // Search & Candidates
   const [isSearching, setIsSearching] = useState(false)
-  const [isReversing, setIsReversing] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [candidates, setCandidates] = useState<GeocodeLocationResultDTO[]>([])
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
+
+  // Reverse Geocode Suggestion
+  const [isReversing, setIsReversing] = useState(false)
   const [reverseResult, setReverseResult] = useState<GeocodeLocationResultDTO | null>(null)
   const [geoError, setGeoError] = useState<string | null>(null)
+  const [ubigeoMismatch, setUbigeoMismatch] = useState<string | null>(null)
 
-  // Raw strings for manual coordinate inputs (allows partial typing)
+  // Raw strings for manual coordinate inputs
   const [rawLat, setRawLat] = useState('')
   const [rawLon, setRawLon] = useState('')
 
+  // Sync with value prop if value changes from outside (e.g. form reset or editing another branch)
+  useEffect(() => {
+    setTempLat(value.latitude)
+    setTempLon(value.longitude)
+    setAddressDraft(value.address)
+    setIsConfirmed(value.latitude != null && value.longitude != null)
+  }, [value.address, value.latitude, value.longitude])
+
   // ── Search (forward geocoding) ──────────────────────────────────────────────
   const handleSearch = useCallback(async () => {
-    const address = value.address.trim()
-    if (!address) return
+    const query = addressDraft.trim()
+    if (!query) return
 
     setIsSearching(true)
     setSearchError(null)
     setCandidates([])
+    setSelectedCandidateId(null)
     setReverseResult(null)
+    setUbigeoMismatch(null)
 
     try {
       const res = await geocodingApi.search({
-        address,
+        address: query,
         ubigeo_code: ubigeoCode ?? null,
         limit: maxResults,
       })
@@ -130,11 +160,10 @@ export function LocationPicker({
         return
       }
 
+      setCandidates(res.data.results)
       if (res.data.results.length === 1) {
-        // Auto-select single result
+        // Auto-select candidate if only 1 result, but require user confirmation
         selectCandidate(res.data.results[0])
-      } else {
-        setCandidates(res.data.results)
       }
     } catch (caught: unknown) {
       const isUnavailable =
@@ -144,7 +173,7 @@ export function LocationPicker({
         caught.status <= 504
       if (isUnavailable) {
         setSearchError(
-          'El servicio de mapas no está disponible temporalmente. Puedes colocar el marcador manualmente.',
+          'El servicio de mapas no está disponible temporalmente. Puedes colocar el marcador manualmente.'
         )
       } else {
         setSearchError(getErrorMessage(caught))
@@ -152,22 +181,43 @@ export function LocationPicker({
     } finally {
       setIsSearching(false)
     }
-  }, [value.address, ubigeoCode, maxResults]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [addressDraft, ubigeoCode, maxResults]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Candidate Selection ─────────────────────────────────────────────────────
   const selectCandidate = (candidate: GeocodeLocationResultDTO) => {
-    onChange({
-      ...value,
-      latitude: candidate.latitude,
-      longitude: candidate.longitude,
-    })
-    setCandidates([])
+    const candidateId = candidate.place_id ?? `${candidate.latitude}_${candidate.longitude}`
+    setSelectedCandidateId(candidateId)
+    setTempLat(candidate.latitude)
+    setTempLon(candidate.longitude)
+    setSource('geocoding')
+    setIsConfirmed(false) // User must click "Confirmar ubicación"
+
+    // Extract address components and house number
+    setAddressComponents(candidate.address ?? null)
+    const providerNum = candidate.address?.house_number ?? ''
+    const currentNum = providerNum || houseNumber
+    if (providerNum) {
+      setHouseNumber(providerNum)
+    }
+
+    const humanAddress = buildHumanAddress(
+      candidate.address,
+      candidate.display_name,
+      currentNum
+    )
+    setAddressDraft(humanAddress)
   }
 
-  // ── Reverse geocoding (after drag or click) ─────────────────────────────────
-  const handleDragEnd = useCallback(
+  // ── Reverse Geocoding (on map click or marker dragend) ──────────────────────
+  const handleMapLocationChange = useCallback(
     async (lat: number, lng: number) => {
-      onChange({ ...value, latitude: lat, longitude: lng })
+      setTempLat(lat)
+      setTempLon(lng)
+      setSource('map')
+      setIsConfirmed(false) // Invalidate confirmation whenever pin moves
+      setSelectedCandidateId(null)
       setReverseResult(null)
+      setUbigeoMismatch(null)
 
       if (!lat || !lng) return
       setIsReversing(true)
@@ -175,28 +225,67 @@ export function LocationPicker({
         const res = await geocodingApi.reverse({ latitude: lat, longitude: lng })
         if (res.success && res.data) {
           setReverseResult(res.data)
+          setAddressComponents(res.data.address ?? null)
+
+          if (res.data.address?.house_number) {
+            setHouseNumber(res.data.address.house_number)
+          }
+
+          // Check if reverse result district differs significantly from selected UBIGEO
+          if (ubigeoCode && res.data.address?.district) {
+            const district = res.data.address.district
+            if (
+              addressDraft &&
+              !addressDraft.toLowerCase().includes(district.toLowerCase())
+            ) {
+              setUbigeoMismatch(
+                `El punto seleccionado parece ubicarse en el distrito de ${district}.`
+              )
+            }
+          }
         }
       } catch {
-        // Reverse failure is non-fatal — user already has coordinates
+        // Reverse failure is non-fatal
       } finally {
         setIsReversing(false)
       }
     },
-    [value, onChange],
+    [ubigeoCode, addressDraft]
   )
 
+  // ── Apply Suggested Reverse Address ─────────────────────────────────────────
   const applyReverseAddress = () => {
     if (reverseResult) {
-      onChange({ ...value, address: reverseResult.display_name })
+      const human = buildHumanAddress(
+        reverseResult.address,
+        reverseResult.display_name,
+        houseNumber
+      )
+      setAddressDraft(human)
       setReverseResult(null)
     }
   }
 
-  // ── Manual coordinate commit ────────────────────────────────────────────────
+  // ── House Number Manual Edit ────────────────────────────────────────────────
+  const handleHouseNumberChange = (newNum: string) => {
+    setHouseNumber(newNum)
+    setIsConfirmed(false)
+
+    // Reconstruct human address with updated house number without changing lat/lon
+    if (addressComponents) {
+      const updated = buildHumanAddress(addressComponents, addressDraft, newNum)
+      setAddressDraft(updated)
+    }
+  }
+
+  // ── Manual Coordinate Commit ────────────────────────────────────────────────
   const commitLat = () => {
     const parsed = parseFloat(rawLat)
     if (!Number.isNaN(parsed) && parsed >= -90 && parsed <= 90) {
-      onChange({ ...value, latitude: parsed })
+      setTempLat(parsed)
+      setIsConfirmed(false)
+      setSource('manual')
+      void handleMapLocationChange(parsed, tempLon ?? -77.0428)
     }
     setRawLat('')
   }
@@ -204,12 +293,27 @@ export function LocationPicker({
   const commitLon = () => {
     const parsed = parseFloat(rawLon)
     if (!Number.isNaN(parsed) && parsed >= -180 && parsed <= 180) {
-      onChange({ ...value, longitude: parsed })
+      setTempLon(parsed)
+      setIsConfirmed(false)
+      setSource('manual')
+      void handleMapLocationChange(tempLat ?? -12.0464, parsed)
     }
     setRawLon('')
   }
 
-  // ── Browser geolocation ─────────────────────────────────────────────────────
+  // ── Confirm Location Workflow ───────────────────────────────────────────────
+  const handleConfirmLocation = () => {
+    if (tempLat == null || tempLon == null) return
+
+    setIsConfirmed(true)
+    onChange({
+      address: addressDraft.trim(),
+      latitude: tempLat,
+      longitude: tempLon,
+    })
+  }
+
+  // ── Browser Geolocation ─────────────────────────────────────────────────────
   const useMyLocation = () => {
     if (!navigator.geolocation) {
       setGeoError('Tu navegador no soporta geolocalización.')
@@ -220,141 +324,212 @@ export function LocationPicker({
       (pos) => {
         const lat = pos.coords.latitude
         const lng = pos.coords.longitude
-        onChange({ ...value, latitude: lat, longitude: lng })
-        void handleDragEnd(lat, lng)
+        setTempLat(lat)
+        setTempLon(lng)
+        setIsConfirmed(false)
+        void handleMapLocationChange(lat, lng)
       },
       () => {
         setGeoError(
-          'Permiso de ubicación denegado. Verifica la configuración de tu navegador.',
+          'Permiso de ubicación denegado. Verifica la configuración de tu navegador.'
         )
       },
-      { timeout: 8000, maximumAge: 30000 },
+      { timeout: 8000, maximumAge: 30000 }
     )
   }
 
   const latDisplay =
-    rawLat !== '' ? rawLat : value.latitude != null ? value.latitude.toFixed(7) : ''
+    rawLat !== '' ? rawLat : tempLat != null ? tempLat.toFixed(7) : ''
   const lonDisplay =
-    rawLon !== '' ? rawLon : value.longitude != null ? value.longitude.toFixed(7) : ''
+    rawLon !== '' ? rawLon : tempLon != null ? tempLon.toFixed(7) : ''
 
   return (
     <div className="space-y-3">
-      {/* ── Address input + search button ─────────────────────────────────── */}
-      <div className="flex gap-2 items-end">
-        <div className="flex-1">
+      {/* ── Address input + House number + search button ─────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+        <div className="md:col-span-8">
           <Input
             label="Dirección"
-            value={value.address}
-            onChange={(e) => onChange({ ...value, address: e.target.value })}
+            value={addressDraft}
+            onChange={(e) => {
+              setAddressDraft(e.target.value)
+              setIsConfirmed(false)
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault()
                 void handleSearch()
               }
             }}
-            placeholder="Ej: Av. Industrial 1234, Parque Industrial"
+            placeholder="Ej: Av. José Larco, Miraflores"
             disabled={disabled || isSearching}
           />
         </div>
-        <div className="flex flex-col gap-1 pb-0.5">
-          <Button
-            variant="secondary"
-            size="small"
-            disabled={disabled || isSearching || !value.address.trim()}
-            onClick={() => void handleSearch()}
-            className="whitespace-nowrap"
-          >
-            {isSearching ? (
-              <span className="flex items-center gap-1.5">
-                <span className="spinner-xs" />
-                Buscando…
-              </span>
-            ) : (
-              'Ubicar en mapa'
-            )}
-          </Button>
-          <button
-            type="button"
-            onClick={useMyLocation}
-            disabled={disabled}
-            className="text-[11px] text-blue-600 hover:underline disabled:text-slate-400 text-right"
-          >
-            Usar mi ubicación
-          </button>
+
+        <div className="md:col-span-4 flex gap-2 items-end">
+          <div className="w-24">
+            <label htmlFor={houseNumberInputId} className="field__label">
+              N° / Puerta
+            </label>
+            <input
+              id={houseNumberInputId}
+              type="text"
+              className="field__input text-xs"
+              placeholder="1234"
+              value={houseNumber}
+              onChange={(e) => handleHouseNumberChange(e.target.value)}
+              disabled={disabled || isSearching}
+              aria-label="Número o puerta"
+            />
+          </div>
+
+          <div className="flex-1 flex flex-col gap-1 pb-0.5">
+            <Button
+              variant="secondary"
+              size="small"
+              disabled={disabled || isSearching || !addressDraft.trim()}
+              onClick={() => void handleSearch()}
+              className="whitespace-nowrap w-full"
+            >
+              {isSearching ? (
+                <span className="flex items-center justify-center gap-1.5">
+                  <span className="spinner-xs" />
+                  Buscando…
+                </span>
+              ) : (
+                'Buscar ubicación'
+              )}
+            </Button>
+            <button
+              type="button"
+              onClick={useMyLocation}
+              disabled={disabled}
+              className="text-[11px] text-blue-600 hover:underline disabled:text-slate-400 text-right pr-1"
+            >
+              Usar mi ubicación
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ── Errors ────────────────────────────────────────────────────────── */}
+      {/* ── Errors & Mismatches ────────────────────────────────────────────── */}
       {searchError && <Alert variant="error">{searchError}</Alert>}
       {geoError && <Alert variant="error">{geoError}</Alert>}
+      {ubigeoMismatch && <Alert variant="warning">{ubigeoMismatch}</Alert>}
 
-      {/* ── Multiple candidates ────────────────────────────────────────────── */}
-      {candidates.length > 1 && (
-        <div className="rounded-md border border-slate-200 bg-white shadow-sm divide-y divide-slate-100 text-xs">
-          <p className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-            Resultados encontrados — selecciona el correcto
-          </p>
-          {candidates.map((c, idx) => (
-            <button
-              key={c.place_id ?? idx}
-              type="button"
-              onClick={() => selectCandidate(c)}
-              className="w-full text-left px-3 py-2 hover:bg-slate-50 transition-colors"
-            >
-              <p className="font-medium text-slate-800 leading-snug">{c.display_name}</p>
-              {c.address?.district && (
-                <p className="text-slate-400 text-[11px] mt-0.5">
-                  {[c.address.district, c.address.province, c.address.department]
-                    .filter(Boolean)
-                    .join(', ')}
-                </p>
-              )}
-            </button>
-          ))}
+      {/* ── Candidate Results (Selectable cards) ───────────────────────────── */}
+      {candidates.length > 0 && (
+        <div
+          className="rounded-md border border-slate-200 bg-white shadow-sm divide-y divide-slate-100 text-xs overflow-hidden"
+          role="region"
+          aria-label="Resultados de búsqueda de ubicación"
+        >
+          <div className="px-3 py-1.5 bg-slate-50 flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
+              Resultados encontrados ({candidates.length}) — selecciona el correcto
+            </span>
+          </div>
+          {candidates.map((c, idx) => {
+            const candidateId = c.place_id ?? `${c.latitude}_${c.longitude}`
+            const isSelected = selectedCandidateId === candidateId
+            const humanFormatted = buildHumanAddress(c.address, c.display_name, houseNumber)
+
+            return (
+              <button
+                key={c.place_id ?? idx}
+                type="button"
+                onClick={() => selectCandidate(c)}
+                aria-pressed={isSelected}
+                className={`w-full text-left px-3 py-2 transition-colors flex items-start justify-between gap-2 ${
+                  isSelected
+                    ? 'bg-blue-50/80 border-l-4 border-blue-600 pl-2'
+                    : 'hover:bg-slate-50'
+                }`}
+              >
+                <div>
+                  <p className="font-medium text-slate-800 leading-snug">
+                    {humanFormatted}
+                  </p>
+                  <p className="text-slate-400 text-[11px] mt-0.5">
+                    {c.display_name}
+                  </p>
+                </div>
+                {isSelected ? (
+                  <span className="text-blue-600 font-semibold text-[11px] whitespace-nowrap pt-0.5">
+                    ✓ Seleccionado
+                  </span>
+                ) : (
+                  <span className="text-slate-400 text-[11px] whitespace-nowrap pt-0.5">
+                    Seleccionar
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
       )}
 
       {/* ── Map ───────────────────────────────────────────────────────────── */}
       <div className="relative">
         <LocationMap
-          latitude={value.latitude}
-          longitude={value.longitude}
-          onLocationChange={(lat, lng) => onChange({ ...value, latitude: lat, longitude: lng })}
-          onDragEnd={(lat, lng) => void handleDragEnd(lat, lng)}
+          latitude={tempLat}
+          longitude={tempLon}
+          onLocationChange={(lat, lng) => {
+            setTempLat(lat)
+            setTempLon(lng)
+            setIsConfirmed(false)
+          }}
+          onDragEnd={(lat, lng) => void handleMapLocationChange(lat, lng)}
           interactive={!disabled}
         />
-        <p className="mt-1 text-[11px] text-slate-400">
-          Arrastra el marcador o haz clic en el mapa para ajustar la ubicación.
-        </p>
+        <div className="flex items-center justify-between mt-1 text-[11px] text-slate-400 px-0.5">
+          <span>Arrastra el marcador o haz clic en el mapa para ajustar la posición exacta.</span>
+          {tempLat != null && tempLon != null && (
+            <span className="font-mono text-slate-500">
+              [{tempLat.toFixed(5)}, {tempLon.toFixed(5)}]
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* ── Reverse geocode suggestion ─────────────────────────────────────── */}
+      {/* ── Reverse geocode suggestion banner ──────────────────────────────── */}
       {(isReversing || reverseResult) && (
         <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800 flex items-start justify-between gap-2">
           {isReversing ? (
             <span className="flex items-center gap-1.5">
               <span className="spinner-xs" />
-              Buscando dirección…
+              Obteniendo dirección del punto…
             </span>
           ) : (
             <>
               <div>
-                <p className="font-medium">Dirección sugerida por el mapa</p>
-                <p className="text-blue-700 mt-0.5">{reverseResult?.display_name}</p>
+                <p className="font-medium">Dirección sugerida por el mapa:</p>
+                <p className="text-blue-700 mt-0.5">
+                  {buildHumanAddress(
+                    reverseResult?.address,
+                    reverseResult?.display_name,
+                    houseNumber
+                  )}
+                </p>
+                {!reverseResult?.address?.house_number && (
+                  <p className="text-[11px] text-blue-600/80 mt-0.5">
+                    El mapa no encontró un número exacto. Puedes ingresarlo en el campo &quot;N° / Puerta&quot;.
+                  </p>
+                )}
               </div>
               <button
                 type="button"
                 onClick={applyReverseAddress}
-                className="text-blue-700 font-semibold hover:underline whitespace-nowrap"
+                className="text-blue-700 font-semibold hover:underline whitespace-nowrap self-center bg-blue-100/60 px-2 py-1 rounded"
               >
-                Usar esta dirección
+                Usar dirección sugerida
               </button>
             </>
           )}
         </div>
       )}
 
-      {/* ── Manual coordinates ─────────────────────────────────────────────── */}
+      {/* ── Manual coordinates inputs ──────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3">
         <CoordinateDisplay
           label="Latitud"
@@ -375,9 +550,37 @@ export function LocationPicker({
           disabled={disabled}
         />
       </div>
-      <p className="text-[11px] text-slate-400">
-        Puedes editar las coordenadas manualmente. El marcador se actualizará al confirmar.
-      </p>
+
+      {/* ── Explicit Location Confirmation Banner / Button ─────────────────── */}
+      <div className="pt-1 flex items-center justify-between border-t border-slate-100 gap-3">
+        <div>
+          {isConfirmed ? (
+            <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              Ubicación confirmada
+            </span>
+          ) : tempLat != null && tempLon != null ? (
+            <span className="inline-flex items-center gap-1.5 text-xs text-amber-700 font-medium bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              Ubicación ajustada (pendiente de confirmar)
+            </span>
+          ) : (
+            <span className="text-xs text-slate-400">
+              Busca una dirección o haz clic en el mapa para fijar la sede.
+            </span>
+          )}
+        </div>
+
+        <Button
+          type="button"
+          variant={isConfirmed ? 'secondary' : 'primary'}
+          size="small"
+          disabled={disabled || tempLat == null || tempLon == null}
+          onClick={handleConfirmLocation}
+        >
+          {isConfirmed ? 'Reconfirmar ubicación' : 'Confirmar esta ubicación'}
+        </Button>
+      </div>
     </div>
   )
 }

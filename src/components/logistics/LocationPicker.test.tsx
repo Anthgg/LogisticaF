@@ -1,14 +1,14 @@
 /**
  * Tests for LocationPicker component — F005.4
  *
- * Uses MSW to mock geocoding API calls.
+ * Mocks geocodingApi calls via Vitest spies.
  * Does NOT call real Nominatim or backend.
  */
-import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
+import { geocodingApi } from '../../api/geocoding-api'
+import { ApiRequestError } from '../../types/api'
 import { LocationPicker } from './LocationPicker'
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -72,24 +72,17 @@ const MOCK_REVERSE_RESULT = {
   raw_type: null,
 }
 
-const server = setupServer(
-  http.post('*/logistics/geocoding/search', () =>
-    HttpResponse.json({
-      success: true,
-      data: { results: [MOCK_SEARCH_RESULT], count: 1 },
-    }),
-  ),
-  http.post('*/logistics/geocoding/reverse', () =>
-    HttpResponse.json({
-      success: true,
-      data: MOCK_REVERSE_RESULT,
-    }),
-  ),
-)
-
-beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }))
-afterEach(() => server.resetHandlers())
-afterAll(() => server.close())
+beforeEach(() => {
+  vi.restoreAllMocks()
+  vi.spyOn(geocodingApi, 'search').mockResolvedValue({
+    success: true,
+    data: { results: [MOCK_SEARCH_RESULT], count: 1 },
+  })
+  vi.spyOn(geocodingApi, 'reverse').mockResolvedValue({
+    success: true,
+    data: MOCK_REVERSE_RESULT,
+  })
+})
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Tests
@@ -135,17 +128,13 @@ describe('LocationPicker', () => {
   })
 
   it('shows multiple candidates when search returns many results', async () => {
-    server.use(
-      http.post('*/logistics/geocoding/search', () =>
-        HttpResponse.json({
-          success: true,
-          data: {
-            results: [MOCK_SEARCH_RESULT, { ...MOCK_SEARCH_RESULT, place_id: '99', display_name: 'Otro Resultado' }],
-            count: 2,
-          },
-        }),
-      ),
-    )
+    vi.spyOn(geocodingApi, 'search').mockResolvedValue({
+      success: true,
+      data: {
+        results: [MOCK_SEARCH_RESULT, { ...MOCK_SEARCH_RESULT, place_id: '99', display_name: 'Otro Resultado' }],
+        count: 2,
+      },
+    })
     renderPicker({ value: { address: 'Av. Larco', latitude: null, longitude: null } })
     await userEvent.click(screen.getByRole('button', { name: /ubicar en mapa/i }))
 
@@ -156,10 +145,8 @@ describe('LocationPicker', () => {
   })
 
   it('shows error when provider is unavailable', async () => {
-    server.use(
-      http.post('*/logistics/geocoding/search', () =>
-        HttpResponse.json({ detail: 'Service unavailable' }, { status: 503 }),
-      ),
+    vi.spyOn(geocodingApi, 'search').mockRejectedValue(
+      new ApiRequestError('Service unavailable', { code: 'GEOCODING_PROVIDER_UNAVAILABLE', status: 503 }),
     )
     renderPicker({ value: { address: 'Av. Test', latitude: null, longitude: null } })
     await userEvent.click(screen.getByRole('button', { name: /ubicar en mapa/i }))
@@ -170,11 +157,10 @@ describe('LocationPicker', () => {
   })
 
   it('shows error when address not found', async () => {
-    server.use(
-      http.post('*/logistics/geocoding/search', () =>
-        HttpResponse.json({ success: true, data: { results: [], count: 0 } }),
-      ),
-    )
+    vi.spyOn(geocodingApi, 'search').mockResolvedValue({
+      success: true,
+      data: { results: [], count: 0 },
+    })
     renderPicker({ value: { address: 'XYZ 999 nowhere', latitude: null, longitude: null } })
     await userEvent.click(screen.getByRole('button', { name: /ubicar en mapa/i }))
 

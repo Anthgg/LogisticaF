@@ -55,6 +55,42 @@ const SESSION_ERROR_CODES = new Set([
   'REFRESH_TOKEN_REUSED',
 ])
 
+/**
+ * Códigos con los que el backend distingue por qué deniega una acción autorizada.
+ * Los envía él (`{ error: { code } }`); aquí solo se nombran para poder reaccionar sin
+ * mirar el número de estado: los tres llegan como 403 y significan cosas distintas.
+ */
+export const ACCESS_DENIED_CODE = 'FORBIDDEN'
+export const STEP_UP_REQUIRED_CODE = 'STEP_UP_REQUIRED'
+export const STEP_UP_PROOF_INVALID_CODE = 'STEP_UP_PROOF_NOT_FOUND'
+
+const STEP_UP_ERROR_CODES = new Set([STEP_UP_REQUIRED_CODE, STEP_UP_PROOF_INVALID_CODE])
+
+/** Falta la verificación reforzada, o la presentada ya no vale: se puede reintentar. */
+export function isStepUpError(error: unknown): boolean {
+  return error instanceof ApiRequestError && STEP_UP_ERROR_CODES.has(error.code)
+}
+
+/** El permiso no se tiene. Reintentar no cambia nada; hay que pedir el acceso. */
+export function isAccessDeniedError(error: unknown): boolean {
+  return (
+    error instanceof ApiRequestError &&
+    error.status === 403 &&
+    !STEP_UP_ERROR_CODES.has(error.code)
+  )
+}
+
+/**
+ * Código cuando la respuesta no trae uno propio. 401 y 403 tienen nombre porque la
+ * diferencia importa —«no sé quién eres» frente a «sé quién eres y no puedes»— y
+ * `HTTP_403` obliga a cada pantalla a reinterpretar el número por su cuenta.
+ */
+function fallbackCode(status: number): string {
+  if (status === 401) return 'SESSION_REQUIRED'
+  if (status === 403) return ACCESS_DENIED_CODE
+  return `HTTP_${status}`
+}
+
 let refreshPromise: Promise<unknown> | null = null
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -102,7 +138,7 @@ function extractError(payload: unknown, status: number): ApiRequestError {
         ? 'Ocurrió un error interno. Inténtalo más tarde.'
         : payload.detail,
       {
-        code: status === 401 ? 'SESSION_REQUIRED' : `HTTP_${status}`,
+        code: fallbackCode(status),
         status,
       },
     )
@@ -114,7 +150,7 @@ function extractError(payload: unknown, status: number): ApiRequestError {
         ? 'Ocurrió un error interno. Inténtalo más tarde.'
         : payload.message,
       {
-        code: status === 401 ? 'SESSION_REQUIRED' : `HTTP_${status}`,
+        code: fallbackCode(status),
         status,
       },
     )
@@ -130,7 +166,7 @@ function extractError(payload: unknown, status: number): ApiRequestError {
         : 'La solicitud no pudo completarse.'
 
   return new ApiRequestError(message, {
-    code: status === 401 ? 'SESSION_REQUIRED' : `HTTP_${status}`,
+    code: fallbackCode(status),
     status,
   })
 }

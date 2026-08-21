@@ -9,6 +9,7 @@ export function ResourceDialog({
   submitLabel,
   isSubmitting = false,
   isSubmitDisabled = false,
+  maxWidth = 'max-w-[640px]',
   onSubmit,
   onClose,
 }: {
@@ -19,6 +20,7 @@ export function ResourceDialog({
   submitLabel: string
   isSubmitting?: boolean
   isSubmitDisabled?: boolean
+  maxWidth?: string
   onSubmit: () => void
   onClose: () => void
 }) {
@@ -71,7 +73,7 @@ export function ResourceDialog({
     <div className="dialog-backdrop" role="presentation" onMouseDown={close}>
       <div
         ref={dialogRef}
-        className="resource-dialog"
+        className={`resource-dialog w-full ${maxWidth}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="resource-dialog-title"
@@ -85,22 +87,23 @@ export function ResourceDialog({
           </div>
           <button
             type="button"
-            className="icon-button"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 cursor-pointer"
             onClick={close}
             aria-label="Cerrar"
             disabled={isSubmitting}
           >
-            ×
+            <span className="text-lg leading-none font-medium">×</span>
           </button>
         </div>
         <form onSubmit={submit}>
           <div className="resource-dialog__body">{children}</div>
           <div className="resource-dialog__footer">
-            <Button type="button" variant="secondary" onClick={close} disabled={isSubmitting}>
+            <Button type="button" variant="secondary" size="small" onClick={close} disabled={isSubmitting}>
               Cancelar
             </Button>
             <Button
               type="submit"
+              size="small"
               isLoading={isSubmitting}
               loadingLabel="Guardando..."
               disabled={isSubmitDisabled || isSubmitting}

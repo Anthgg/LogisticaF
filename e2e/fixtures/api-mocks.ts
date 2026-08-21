@@ -386,7 +386,7 @@ export async function installApiMocks(
     }),
   )
 
-  await page.route('**/api/logistics/organizations', (route) =>
+  await page.route('**/api/logistics/organizations*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -427,6 +427,40 @@ export async function installApiMocks(
             address_text: 'Av. Principal 123',
             latitude: null,
             longitude: null,
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:00:00Z',
+          },
+        ],
+        page: 1,
+        page_size: 20,
+        total: 1,
+        total_pages: 1,
+      }),
+    }),
+  )
+
+  await page.route('**/api/logistics/branches/*/warehouses**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        items: [
+          {
+            id: 'wh-1',
+            organization_id: 'org-1',
+            branch_id: 'branch-1',
+            code: 'WH-001',
+            name: 'Almacén Central',
+            warehouse_type: 'general',
+            address: 'Av. Principal 123',
+            uses_branch_location: true,
+            latitude: null,
+            longitude: null,
+            effective_latitude: null,
+            effective_longitude: null,
+            location_source: 'BRANCH',
+            is_default: true,
+            is_active: true,
             created_at: '2026-01-01T00:00:00Z',
             updated_at: '2026-01-01T00:00:00Z',
           },

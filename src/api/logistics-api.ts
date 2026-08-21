@@ -9,6 +9,7 @@ import type {
   ListQuery,
   LogisticsWarehouseCreate,
   LogisticsWarehouseResponse,
+  LogisticsWarehouseUpdate,
   LogisticsWarehouseSetDefault,
   LogisticsWarehouseStatusUpdate,
   OrganizationCreate,
@@ -94,10 +95,18 @@ export const logisticsApi = {
       apiRequest<LogisticsWarehouseResponse>({
         path: `/logistics/branches/${branchId}/warehouses/${id}`,
       }),
+    getById: (id: string) =>
+      apiRequest<LogisticsWarehouseResponse>({ path: `/logistics/warehouses/${id}` }),
     create: (branchId: string, body: LogisticsWarehouseCreate) =>
       apiRequest<LogisticsWarehouseResponse>({
         path: `/logistics/branches/${branchId}/warehouses`,
         method: 'POST',
+        body,
+      }),
+    update: (branchId: string, id: string, body: LogisticsWarehouseUpdate) =>
+      apiRequest<LogisticsWarehouseResponse>({
+        path: `/logistics/branches/${branchId}/warehouses/${id}`,
+        method: 'PATCH',
         body,
       }),
     changeStatus: (id: string, body: LogisticsWarehouseStatusUpdate) =>

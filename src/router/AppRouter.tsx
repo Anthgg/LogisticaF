@@ -154,8 +154,11 @@ import { VehicleVerificationsPage } from '../pages/VehicleVerificationsPage'
 import { VehicleVerificationSourcesPage } from '../pages/VehicleVerificationSourcesPage'
 import { WarehouseDetailPage } from '../pages/WarehouseDetailPage'
 import { WarehousesPage } from '../pages/WarehousesPage'
+import { WarehouseFormPage } from '../pages/WarehouseFormPage'
 import { OrganizationsPage } from '../pages/OrganizationsPage'
+import { OrganizationFormPage } from '../pages/OrganizationFormPage'
 import { BranchesPage } from '../pages/BranchesPage'
+import { BranchFormPage } from '../pages/BranchFormPage'
 import { RolesPage } from '../pages/RolesPage'
 import { RoleAssignmentsPage } from '../pages/RoleAssignmentsPage'
 import { PermissionsCatalogPage } from '../pages/PermissionsCatalogPage'
@@ -287,6 +290,27 @@ export function AppRouter() {
               <Route
                 element={
                   <LogisticsAccessRoute
+                    permission={LOGISTICS_PERMISSIONS.warehouses.create}
+                  />
+                }
+              >
+                <Route path="/logistics/warehouses/new" element={<WarehouseFormPage />} />
+              </Route>
+              <Route
+                element={
+                  <LogisticsAccessRoute
+                    permission={LOGISTICS_PERMISSIONS.warehouses.update}
+                  />
+                }
+              >
+                <Route
+                  path="/logistics/warehouses/:warehouseId/edit"
+                  element={<WarehouseFormPage />}
+                />
+              </Route>
+              <Route
+                element={
+                  <LogisticsAccessRoute
                     permission={LOGISTICS_PERMISSIONS.organizations.read}
                   />
                 }
@@ -296,11 +320,52 @@ export function AppRouter() {
               <Route
                 element={
                   <LogisticsAccessRoute
+                    permission={LOGISTICS_PERMISSIONS.organizations.create}
+                  />
+                }
+              >
+                <Route
+                  path="/logistics/organizations/new"
+                  element={<OrganizationFormPage />}
+                />
+              </Route>
+              <Route
+                element={
+                  <LogisticsAccessRoute
+                    permission={LOGISTICS_PERMISSIONS.organizations.update}
+                  />
+                }
+              >
+                <Route
+                  path="/logistics/organizations/:organizationId/edit"
+                  element={<OrganizationFormPage />}
+                />
+              </Route>
+              <Route
+                element={
+                  <LogisticsAccessRoute
                     permission={LOGISTICS_PERMISSIONS.branches.read}
                   />
                 }
               >
                 <Route path="/logistics/branches" element={<BranchesPage />} />
+              </Route>
+              <Route
+                element={
+                  <LogisticsAccessRoute permission={LOGISTICS_PERMISSIONS.branches.create} />
+                }
+              >
+                <Route path="/logistics/branches/new" element={<BranchFormPage />} />
+              </Route>
+              <Route
+                element={
+                  <LogisticsAccessRoute permission={LOGISTICS_PERMISSIONS.branches.update} />
+                }
+              >
+                <Route
+                  path="/logistics/branches/:branchId/edit"
+                  element={<BranchFormPage />}
+                />
               </Route>
               <Route
                 element={

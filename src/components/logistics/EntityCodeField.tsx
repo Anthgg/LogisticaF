@@ -19,11 +19,13 @@ export function EntityCodeField({
     <div className="field" data-testid="entity-code-field">
       <span className="field__label">{label}</span>
       {code ? (
-        <p className="field__readonly">
+        <div className="field__readonly">
           <code>{code}</code>
-        </p>
+        </div>
       ) : (
-        <p className="field__hint">Se generará automáticamente</p>
+        <div className="flex h-9 items-center rounded-lg border border-dashed border-slate-300 bg-slate-50/70 px-3 text-xs text-slate-400 italic">
+          Se generará automáticamente
+        </div>
       )}
     </div>
   )

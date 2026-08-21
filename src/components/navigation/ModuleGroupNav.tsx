@@ -8,11 +8,8 @@ import {
 import { useAllowedNavigationModules } from './useAllowedNavigationModules'
 
 /**
- * Sub-navegación del grupo activo, en la parte superior de la página.
- *
- * El botón de la barra inferior entra directamente al módulo principal del
- * grupo; una vez dentro, las demás opciones del grupo se muestran aquí en vez
- * de en un desplegable flotante.
+ * Sub-navegación compacta del grupo activo, en la parte superior de la página.
+ * Estilo de tabs empresariales modernos con indicador de pestaña activa de 2px.
  */
 export function ModuleGroupNav() {
   const location = useLocation()
@@ -27,22 +24,21 @@ export function ModuleGroupNav() {
   const group = NAVIGATION_GROUPS[groupId]
   const modules = getGroupModules(groupId, allowedModules)
 
-  // Con una sola opción visible el grupo no aporta nada: la barra inferior ya
-  // muestra ese módulo como acceso directo.
+  // Con una sola opción visible el grupo no aporta nada
   if (modules.length < 2) return null
 
   return (
     <nav
       aria-label={`Secciones de ${group.label}`}
-      className="mb-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white/90 p-1.5 shadow-sm backdrop-blur-sm"
+      className="mb-3.5 flex items-center gap-2 border-b border-slate-200/80 overflow-x-auto scrollbar-none"
     >
-      <div className="flex min-w-max items-center gap-1">
-        <span className="flex items-center gap-2 px-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
-          <LogisticsIcon name={group.iconName} size={15} aria-hidden="true" />
-          {group.label}
-        </span>
-        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+      <div className="flex shrink-0 items-center gap-1.5 py-1.5 pr-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+        <LogisticsIcon name={group.iconName} size={14} aria-hidden="true" />
+        <span>{group.label}</span>
+      </div>
+      <div className="h-4 w-px bg-slate-200 shrink-0" aria-hidden="true" />
 
+      <div className="flex min-w-max items-center gap-1">
         {modules.map((module) => {
           const isActive = module.id === activeModuleId
           return (
@@ -51,19 +47,27 @@ export function ModuleGroupNav() {
               to={module.route}
               title={module.description}
               aria-current={isActive ? 'page' : undefined}
-              className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium no-underline transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 ${
+              className={`group relative inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold no-underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 ${
                 isActive
-                  ? 'bg-orange-50 text-orange-800 shadow-sm ring-1 ring-orange-200'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+                  ? 'text-primary'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 rounded-md'
               }`}
             >
               <LogisticsIcon
                 name={module.iconName}
-                size={16}
+                size={14}
                 aria-hidden="true"
-                className={isActive ? 'text-orange-600' : 'text-slate-400'}
+                className={isActive ? 'text-primary' : 'text-slate-400 group-hover:text-slate-600'}
               />
-              {module.label}
+              <span>{module.label}</span>
+
+              {/* Indicador de pestaña activa de 2px */}
+              {isActive && (
+                <span
+                  className="absolute inset-x-0 bottom-0 h-0.5 bg-primary rounded-t"
+                  aria-hidden="true"
+                />
+              )}
             </Link>
           )
         })}

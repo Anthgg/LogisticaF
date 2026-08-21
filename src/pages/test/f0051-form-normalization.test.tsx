@@ -9,7 +9,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nContext } from '../../contexts/i18n-context'
 import { ApiRequestError } from '../../types/api'
@@ -24,7 +24,10 @@ import {
   type LogisticsAuthorizationState,
 } from '../../features/logistics-permissions/contexts/logistics-authorization-context'
 import { BranchesPage } from '../BranchesPage'
+import { BranchFormPage } from '../BranchFormPage'
+import { OrganizationFormPage } from '../OrganizationFormPage'
 import { OrganizationsPage } from '../OrganizationsPage'
+import { WarehouseFormPage } from '../WarehouseFormPage'
 import { WarehousesPage } from '../WarehousesPage'
 
 vi.mock('../../api/logistics-api', () => ({
@@ -47,7 +50,9 @@ vi.mock('../../api/logistics-api', () => ({
     warehouses: {
       listByBranch: vi.fn(),
       get: vi.fn(),
+      getById: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
       changeStatus: vi.fn(),
       setDefault: vi.fn(),
     },
@@ -196,7 +201,15 @@ function renderPage(ui: ReactElement) {
       <MemoryRouter>
         <LogisticsAuthorizationContext.Provider value={authorization()}>
           <LogisticsAccessContext.Provider value={access()}>
-            {ui}
+            <Routes>
+              <Route path="/logistics/organizations/new" element={<OrganizationFormPage />} />
+              <Route path="/logistics/organizations/:organizationId/edit" element={<OrganizationFormPage />} />
+              <Route path="/logistics/branches/new" element={<BranchFormPage />} />
+              <Route path="/logistics/branches/:branchId/edit" element={<BranchFormPage />} />
+              <Route path="/logistics/warehouses/new" element={<WarehouseFormPage />} />
+              <Route path="/logistics/warehouses/:warehouseId/edit" element={<WarehouseFormPage />} />
+              <Route path="*" element={ui} />
+            </Routes>
           </LogisticsAccessContext.Provider>
         </LogisticsAuthorizationContext.Provider>
       </MemoryRouter>
@@ -207,13 +220,17 @@ function renderPage(ui: ReactElement) {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(logisticsApi.organizations.list).mockResolvedValue(page([ORG]))
+  vi.mocked(logisticsApi.organizations.get).mockResolvedValue(ORG)
   vi.mocked(logisticsApi.organizations.branches).mockResolvedValue(page([BRANCH]))
   vi.mocked(logisticsApi.organizations.create).mockResolvedValue(ORG)
   vi.mocked(logisticsApi.organizations.update).mockResolvedValue(ORG)
   vi.mocked(logisticsApi.branches.create).mockResolvedValue(BRANCH)
+  vi.mocked(logisticsApi.branches.get).mockResolvedValue(BRANCH)
   vi.mocked(logisticsApi.branches.update).mockResolvedValue(BRANCH)
   vi.mocked(logisticsApi.warehouses.listByBranch).mockResolvedValue(page([WAREHOUSE]))
   vi.mocked(logisticsApi.warehouses.create).mockResolvedValue(WAREHOUSE)
+  vi.mocked(logisticsApi.warehouses.getById).mockResolvedValue(WAREHOUSE)
+  vi.mocked(logisticsApi.warehouses.update).mockResolvedValue(WAREHOUSE)
   vi.mocked(referenceCatalogsApi.listCountries).mockResolvedValue(COUNTRIES)
   vi.mocked(referenceCatalogsApi.listTimezones).mockImplementation(
     async (countryCode?: string) => (countryCode === 'CL' ? TIMEZONES_CL : TIMEZONES_PE),
@@ -233,6 +250,18 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('OrganizationsPage · F005.1', () => {
+  it('abre la ruta dedicada y muestra el preview cartográfico del país sin modal', async () => {
+    const user = userEvent.setup()
+    renderPage(<OrganizationsPage />)
+    await screen.findByText('Andes Logistics')
+    await user.click(screen.getByRole('button', { name: 'Nueva organización' }))
+
+    expect(await screen.findByRole('heading', { name: 'Nueva organización' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('country-map-preview')).toHaveTextContent('Perú (PE)')
+    expect(screen.getByLabelText('Mapa de contexto de Perú')).toBeInTheDocument()
+  })
+
   it('no ofrece un campo de código editable al crear', async () => {
     const user = userEvent.setup()
     renderPage(<OrganizationsPage />)
@@ -369,6 +398,88 @@ describe('BranchesPage · F005.1', () => {
 // ---------------------------------------------------------------------------
 
 describe('WarehousesPage · F005.1', () => {
+  it('abre la página dedicada en modo heredado por defecto y sin modal', async () => {
+    const user = userEvent.setup()
+    renderPage(<WarehousesPage />)
+    await screen.findByText('Almacén Central')
+    await user.click(screen.getByRole('button', { name: 'Nuevo almacén' }))
+
+    expect(await screen.findByRole('heading', { name: 'Nuevo almacén' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /Usar ubicación de la sede/ })).toBeChecked()
+    expect(screen.getByTestId('warehouse-inherited-location')).toBeInTheDocument()
+    expect(screen.getByLabelText('Mapa de ubicación heredada de la sede')).toBeInTheDocument()
+  })
+
+  it('exige confirmación y envía coordenadas propias del almacén', async () => {
+    const user = userEvent.setup()
+    renderPage(<WarehousesPage />)
+    await screen.findByText('Almacén Central')
+    await user.click(screen.getByRole('button', { name: 'Nuevo almacén' }))
+    await screen.findByRole('heading', { name: 'Nuevo almacén' })
+
+    await user.click(screen.getByRole('checkbox', { name: /Usar ubicación de la sede/ }))
+    expect(screen.getByTestId('warehouse-custom-location')).toBeInTheDocument()
+    const submit = screen.getByRole('button', { name: 'Crear almacén' })
+    expect(submit).toBeDisabled()
+
+    await user.type(screen.getByLabelText('Nombre'), 'Almacén con punto propio')
+    await user.type(screen.getByLabelText('Latitud'), '-12.3456789')
+    await user.tab()
+    await user.clear(screen.getByLabelText('Longitud'))
+    await user.type(screen.getByLabelText('Longitud'), '-77.3456789')
+    await user.tab()
+    await user.click(screen.getByRole('button', { name: 'Confirmar esta ubicación' }))
+    await waitFor(() => expect(submit).toBeEnabled())
+    await user.click(submit)
+
+    await waitFor(() => expect(logisticsApi.warehouses.create).toHaveBeenCalled())
+    expect(vi.mocked(logisticsApi.warehouses.create).mock.calls[0]).toEqual([
+      BRANCH.id,
+      expect.objectContaining({
+        name: 'Almacén con punto propio',
+        uses_branch_location: false,
+        latitude: -12.3456789,
+        longitude: -77.3456789,
+      }),
+    ])
+  })
+
+  it('al editar custom y volver a heredado envía coordenadas nulas', async () => {
+    const user = userEvent.setup()
+    vi.mocked(logisticsApi.warehouses.getById).mockResolvedValue({
+      ...WAREHOUSE,
+      uses_branch_location: false,
+      latitude: -12.4444444,
+      longitude: -77.4444444,
+      effective_latitude: -12.4444444,
+      effective_longitude: -77.4444444,
+      location_source: 'WAREHOUSE',
+    })
+    renderPage(<WarehousesPage />)
+    const warehouseName = await screen.findByText('Almacén Central')
+    const row = warehouseName.closest('tr') as HTMLElement
+    await user.click(within(row).getByRole('button', { name: 'Editar' }))
+
+    expect(await screen.findByRole('heading', { name: 'Editar almacén' })).toBeInTheDocument()
+    const inherited = screen.getByRole('checkbox', { name: /Usar ubicación de la sede/ })
+    expect(inherited).not.toBeChecked()
+    await user.click(inherited)
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+
+    await waitFor(() =>
+      expect(logisticsApi.warehouses.update).toHaveBeenCalledWith(
+        BRANCH.id,
+        WAREHOUSE.id,
+        expect.objectContaining({
+          uses_branch_location: true,
+          latitude: null,
+          longitude: null,
+        }),
+      ),
+    )
+  })
+
   it('trae los tipos del backend, sin lista embebida', async () => {
     const user = userEvent.setup()
     renderPage(<WarehousesPage />)
@@ -415,7 +526,7 @@ describe('WarehousesPage · F005.1', () => {
     await user.click(screen.getByRole('button', { name: 'Nuevo almacén' }))
 
     expect(screen.getByTestId('warehouse-inherited-location')).toHaveTextContent(
-      'Pendiente de normalización UBIGEO',
+      'UBIGEO pendiente',
     )
     // Y no reaparecen los campos manuales como alternativa.
     expect(screen.queryByLabelText('Distrito')).not.toBeInTheDocument()
@@ -430,7 +541,7 @@ describe('WarehousesPage · F005.1', () => {
       expect(referenceCatalogsApi.listWarehouseTypes).toHaveBeenCalled(),
     )
     await user.type(screen.getByLabelText('Nombre'), 'Almacén Nuevo')
-    await user.type(screen.getByLabelText('Dirección / referencia'), 'Nave B — Puerta 4')
+    await user.type(screen.getByLabelText('Dirección / referencia del almacén'), 'Nave B — Puerta 4')
     await user.click(screen.getByRole('button', { name: 'Crear almacén' }))
 
     await waitFor(() => expect(logisticsApi.warehouses.create).toHaveBeenCalled())

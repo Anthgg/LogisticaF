@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { geographyApi } from '../../api/geography-api'
 import { Alert } from '../common/Alert'
+import { SearchableCombobox, type ComboboxOption } from '../ui/SearchableCombobox'
 import type {
   GeoDepartmentResponse,
   GeoDistrictResponse,
@@ -16,6 +17,7 @@ import { getErrorMessage } from '../../utils/errors'
  * nombres: «Miraflores» existe en cuatro distritos distintos del Perú, así que un
  * nombre no identifica un lugar. Departamento y provincia solo sirven para acotar
  * la lista y se derivan del código al reabrir el formulario.
+ * Utiliza SearchableCombobox con búsqueda reactiva para una selección rápida.
  */
 export function UbigeoSelector({
   value,
@@ -130,92 +132,89 @@ export function UbigeoSelector({
     onChange(null)
   }
 
+  const departmentOptions: ComboboxOption[] = departments.map((d) => ({
+    value: d.code,
+    label: d.name,
+    code: d.code,
+  }))
+
+  const provinceOptions: ComboboxOption[] = provinces.map((p) => ({
+    value: p.code,
+    label: p.name,
+    code: p.code,
+  }))
+
+  const districtOptions: ComboboxOption[] = districts.map((dist) => ({
+    value: dist.code,
+    label: dist.name,
+    code: dist.code,
+  }))
+
   return (
-    <div className="form-grid">
+    <div className="space-y-3">
       {error && <Alert variant="error">{error}</Alert>}
 
-      <div className="field">
-        <label className="field__label" htmlFor="ubigeo-department">
-          Departamento
-        </label>
-        <div className="field__control">
-          <select
-            id="ubigeo-department"
-            className="field__input"
-            value={departmentCode}
-            disabled={disabled || isLoadingDepartments}
-            onChange={(e) => changeDepartment(e.target.value)}
-          >
-            <option value="">
-              {isLoadingDepartments ? 'Cargando…' : 'Selecciona un departamento'}
-            </option>
-            {departments.map((item) => (
-              <option key={item.code} value={item.code}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <SearchableCombobox
+          id="ubigeo-department"
+          label="Departamento"
+          value={departmentCode}
+          options={departmentOptions}
+          onChange={changeDepartment}
+          disabled={disabled || isLoadingDepartments}
+          isLoading={isLoadingDepartments}
+          placeholder={
+            isLoadingDepartments
+              ? 'Cargando…'
+              : departments.length === 0
+                ? 'Sin departamentos'
+                : 'Seleccionar departamento'
+          }
+          searchPlaceholder="Buscar departamento..."
+          emptyMessage="Sin departamentos"
+        />
 
-      <div className="field">
-        <label className="field__label" htmlFor="ubigeo-province">
-          Provincia
-        </label>
-        <div className="field__control">
-          <select
-            id="ubigeo-province"
-            className="field__input"
-            value={provinceCode}
-            disabled={disabled || !departmentCode || isLoadingProvinces}
-            onChange={(e) => changeProvince(e.target.value)}
-          >
-            <option value="">
-              {!departmentCode
-                ? 'Selecciona primero un departamento'
-                : isLoadingProvinces
-                  ? 'Cargando…'
-                  : provinces.length === 0
-                    ? 'Sin provincias en este departamento'
-                    : 'Selecciona una provincia'}
-            </option>
-            {provinces.map((item) => (
-              <option key={item.code} value={item.code}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+        <SearchableCombobox
+          id="ubigeo-province"
+          label="Provincia"
+          value={provinceCode}
+          options={provinceOptions}
+          onChange={changeProvince}
+          disabled={disabled || !departmentCode || isLoadingProvinces}
+          isLoading={isLoadingProvinces}
+          placeholder={
+            !departmentCode
+              ? 'Elige departamento primero'
+              : isLoadingProvinces
+                ? 'Cargando…'
+                : provinces.length === 0
+                  ? 'Sin provincias en este departamento'
+                  : 'Seleccionar provincia'
+          }
+          searchPlaceholder="Buscar provincia..."
+          emptyMessage="Sin provincias en este departamento"
+        />
 
-      <div className="field">
-        <label className="field__label" htmlFor="ubigeo-district">
-          Distrito
-        </label>
-        <div className="field__control">
-          <select
-            id="ubigeo-district"
-            className="field__input"
-            value={value ?? ''}
-            disabled={disabled || !provinceCode || isLoadingDistricts}
-            onChange={(e) => onChange(e.target.value || null)}
-          >
-            <option value="">
-              {!provinceCode
-                ? 'Selecciona primero una provincia'
-                : isLoadingDistricts
-                  ? 'Cargando…'
-                  : districts.length === 0
-                    ? 'Sin distritos en esta provincia'
-                    : 'Selecciona un distrito'}
-            </option>
-            {districts.map((item) => (
-              <option key={item.code} value={item.code}>
-                {item.code} · {item.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SearchableCombobox
+          id="ubigeo-district"
+          label="Distrito"
+          value={value ?? ''}
+          options={districtOptions}
+          onChange={(distCode) => onChange(distCode || null)}
+          disabled={disabled || !provinceCode || isLoadingDistricts}
+          isLoading={isLoadingDistricts}
+          placeholder={
+            !provinceCode
+              ? 'Elige provincia primero'
+              : isLoadingDistricts
+                ? 'Cargando…'
+                : districts.length === 0
+                  ? 'Sin distritos en esta provincia'
+                  : 'Seleccionar distrito'
+          }
+          searchPlaceholder="Buscar distrito..."
+          emptyMessage="Sin distritos en esta provincia"
+        />
       </div>
     </div>
   )

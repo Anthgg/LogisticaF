@@ -8,7 +8,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nContext } from '../../contexts/i18n-context'
 import { ApiRequestError } from '../../types/api'
@@ -23,6 +23,7 @@ import {
   type LogisticsAuthorizationState,
 } from '../../features/logistics-permissions/contexts/logistics-authorization-context'
 import { BranchesPage } from '../BranchesPage'
+import { BranchFormPage } from '../BranchFormPage'
 
 vi.mock('../../api/reference-catalogs-api', () => ({
   referenceCatalogsApi: {
@@ -169,10 +170,10 @@ function authorization(): LogisticsAuthorizationState {
   } as unknown as LogisticsAuthorizationState
 }
 
-function renderPage(ui: ReactElement) {
+function renderPage(ui: ReactElement, initialEntry = '/logistics/branches') {
   return render(
     <I18nContext.Provider value={createI18nValue()}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <LogisticsAuthorizationContext.Provider value={authorization()}>
           <LogisticsAccessContext.Provider value={access()}>
             {ui}
@@ -183,10 +184,31 @@ function renderPage(ui: ReactElement) {
   )
 }
 
+function renderCreateForm() {
+  return renderPage(
+    <Routes>
+      <Route path="/logistics/branches/new" element={<BranchFormPage />} />
+      <Route path="/logistics/branches" element={<BranchesPage />} />
+    </Routes>,
+    `/logistics/branches/new?organizationId=${ORG.id}`,
+  )
+}
+
+function renderEditForm() {
+  return renderPage(
+    <Routes>
+      <Route path="/logistics/branches/:branchId/edit" element={<BranchFormPage />} />
+      <Route path="/logistics/branches" element={<BranchesPage />} />
+    </Routes>,
+    `/logistics/branches/${BRANCH.id}/edit`,
+  )
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(logisticsApi.organizations.list).mockResolvedValue(page([ORG]))
   vi.mocked(logisticsApi.organizations.branches).mockResolvedValue(page([BRANCH]))
+  vi.mocked(logisticsApi.branches.get).mockResolvedValue(BRANCH)
   vi.mocked(logisticsApi.branches.create).mockResolvedValue(BRANCH)
   vi.mocked(logisticsApi.branches.update).mockResolvedValue(BRANCH)
   vi.mocked(geographyApi.listDepartments).mockResolvedValue(DEPARTMENTS)
@@ -209,10 +231,7 @@ describe('F004.5 · ubicación normalizada de sede', () => {
   })
 
   it('carga los departamentos desde el backend, sin listas embebidas', async () => {
-    const user = userEvent.setup()
-    renderPage(<BranchesPage />)
-    await screen.findByText('Sede Lima')
-    await user.click(screen.getByRole('button', { name: 'Nueva sede' }))
+    renderCreateForm()
 
     await waitFor(() => expect(geographyApi.listDepartments).toHaveBeenCalled())
     const department = screen.getByLabelText('Departamento')
@@ -222,9 +241,7 @@ describe('F004.5 · ubicación normalizada de sede', () => {
 
   it('encadena departamento → provincia → distrito', async () => {
     const user = userEvent.setup()
-    renderPage(<BranchesPage />)
-    await screen.findByText('Sede Lima')
-    await user.click(screen.getByRole('button', { name: 'Nueva sede' }))
+    renderCreateForm()
     await waitFor(() => expect(geographyApi.listDepartments).toHaveBeenCalled())
 
     // Provincia y distrito arrancan deshabilitados: no hay nada que elegir todavía.
@@ -246,9 +263,7 @@ describe('F004.5 · ubicación normalizada de sede', () => {
 
   it('al cambiar el departamento limpia provincia y distrito', async () => {
     const user = userEvent.setup()
-    renderPage(<BranchesPage />)
-    await screen.findByText('Sede Lima')
-    await user.click(screen.getByRole('button', { name: 'Nueva sede' }))
+    renderCreateForm()
     await waitFor(() => expect(geographyApi.listDepartments).toHaveBeenCalled())
 
     await user.selectOptions(screen.getByLabelText('Departamento'), '15')
@@ -270,9 +285,7 @@ describe('F004.5 · ubicación normalizada de sede', () => {
 
   it('envía solo el código UBIGEO, nunca los nombres', async () => {
     const user = userEvent.setup()
-    renderPage(<BranchesPage />)
-    await screen.findByText('Sede Lima')
-    await user.click(screen.getByRole('button', { name: 'Nueva sede' }))
+    renderCreateForm()
     await waitFor(() => expect(geographyApi.listDepartments).toHaveBeenCalled())
 
     // F005.1 quitó el campo Código del formulario.
@@ -294,10 +307,7 @@ describe('F004.5 · ubicación normalizada de sede', () => {
   })
 
   it('al editar precarga la jerarquía sin obligar a reseleccionar', async () => {
-    const user = userEvent.setup()
-    renderPage(<BranchesPage />)
-    await screen.findByText('Sede Lima')
-    await user.click(screen.getByRole('button', { name: 'Editar' }))
+    renderEditForm()
 
     await waitFor(() =>
       expect(screen.getByLabelText<HTMLSelectElement>('Departamento').value).toBe('15'),
@@ -312,9 +322,7 @@ describe('F004.5 · ubicación normalizada de sede', () => {
 
   it('conserva el UBIGEO al guardar una edición', async () => {
     const user = userEvent.setup()
-    renderPage(<BranchesPage />)
-    await screen.findByText('Sede Lima')
-    await user.click(screen.getByRole('button', { name: 'Editar' }))
+    renderEditForm()
     await waitFor(() =>
       expect(screen.getByLabelText<HTMLSelectElement>('Distrito').value).toBe('150122'),
     )
@@ -327,16 +335,13 @@ describe('F004.5 · ubicación normalizada de sede', () => {
   })
 
   it('muestra un error legible si el catálogo falla', async () => {
-    const user = userEvent.setup()
     vi.mocked(geographyApi.listDepartments).mockRejectedValue(
       new ApiRequestError('No se pudo cargar el catálogo geográfico.', {
         code: 'INTERNAL_ERROR',
         status: 503,
       }),
     )
-    renderPage(<BranchesPage />)
-    await screen.findByText('Sede Lima')
-    await user.click(screen.getByRole('button', { name: 'Nueva sede' }))
+    renderCreateForm()
 
     expect(
       await screen.findByText(/No se pudo cargar el catálogo geográfico/),
@@ -351,24 +356,19 @@ describe('F004.5 · ubicación normalizada de sede', () => {
         status: 422,
       }),
     )
-    renderPage(<BranchesPage />)
-    await screen.findByText('Sede Lima')
-    await user.click(screen.getByRole('button', { name: 'Nueva sede' }))
-    await user.type(screen.getByLabelText('Nombre'), 'Sede Nueva')
+    renderCreateForm()
+    await user.type(await screen.findByLabelText('Nombre'), 'Sede Nueva')
     await user.click(screen.getByRole('button', { name: 'Crear sede' }))
 
-    const dialog = await screen.findByRole('dialog')
     expect(
-      await within(dialog).findByText(/no existe en el catálogo/),
+      await screen.findByText(/no existe en el catálogo/),
     ).toBeInTheDocument()
   })
 
   it('avisa cuando una provincia no tiene distritos', async () => {
     const user = userEvent.setup()
     vi.mocked(geographyApi.listDistrictsByProvince).mockResolvedValue([])
-    renderPage(<BranchesPage />)
-    await screen.findByText('Sede Lima')
-    await user.click(screen.getByRole('button', { name: 'Nueva sede' }))
+    renderCreateForm()
     await waitFor(() => expect(geographyApi.listDepartments).toHaveBeenCalled())
 
     await user.selectOptions(screen.getByLabelText('Departamento'), '15')

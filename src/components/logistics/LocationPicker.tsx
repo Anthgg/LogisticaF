@@ -38,6 +38,10 @@ export interface LocationPickerProps {
   disabled?: boolean
   /** Max candidates to show when search returns multiple results (default 5) */
   maxResults?: number
+  /** Height of the editable map in pixels. */
+  mapHeight?: number
+  /** Viewport center before the user selects a custom point. */
+  initialCenter?: { latitude: number; longitude: number } | null
 }
 
 type LocationSource = 'geocoding' | 'map' | 'manual' | 'initial'
@@ -58,7 +62,7 @@ function CoordinateDisplay({
   label: string
   fieldId: string
   rawValue: string
-  rawString: string
+  rawString: string | null
   onRawChange: (v: string) => void
   onCommit: () => void
   disabled?: boolean
@@ -73,7 +77,7 @@ function CoordinateDisplay({
         type="text"
         inputMode="decimal"
         className="field__input font-mono text-xs"
-        value={rawString !== '' ? rawString : rawValue}
+        value={rawString ?? rawValue}
         onChange={(e) => onRawChange(e.target.value)}
         onBlur={onCommit}
         disabled={disabled}
@@ -94,6 +98,8 @@ export function LocationPicker({
   ubigeoCode,
   disabled = false,
   maxResults = 5,
+  mapHeight = 340,
+  initialCenter,
 }: LocationPickerProps) {
   const houseNumberInputId = useId()
 
@@ -125,8 +131,11 @@ export function LocationPicker({
   const [ubigeoMismatch, setUbigeoMismatch] = useState<string | null>(null)
 
   // Raw strings for manual coordinate inputs
-  const [rawLat, setRawLat] = useState('')
-  const [rawLon, setRawLon] = useState('')
+  // `null` means "show the committed coordinate". An empty string means the
+  // user explicitly cleared the input, which must remain visually empty while
+  // editing instead of snapping back to the previous value.
+  const [rawLat, setRawLat] = useState<string | null>(null)
+  const [rawLon, setRawLon] = useState<string | null>(null)
 
   // Sync with value prop if value changes from outside (e.g. form reset or editing another branch)
   useEffect(() => {
@@ -134,6 +143,8 @@ export function LocationPicker({
     setTempLon(value.longitude)
     setAddressDraft(value.address)
     setIsConfirmed(value.latitude != null && value.longitude != null)
+    setRawLat(null)
+    setRawLon(null)
   }, [value.address, value.latitude, value.longitude])
 
   // ── Search (forward geocoding) ──────────────────────────────────────────────
@@ -280,6 +291,7 @@ export function LocationPicker({
 
   // ── Manual Coordinate Commit ────────────────────────────────────────────────
   const commitLat = () => {
+    if (rawLat == null) return
     const parsed = parseFloat(rawLat)
     if (!Number.isNaN(parsed) && parsed >= -90 && parsed <= 90) {
       setTempLat(parsed)
@@ -287,10 +299,11 @@ export function LocationPicker({
       setSource('manual')
       void handleMapLocationChange(parsed, tempLon ?? -77.0428)
     }
-    setRawLat('')
+    setRawLat(null)
   }
 
   const commitLon = () => {
+    if (rawLon == null) return
     const parsed = parseFloat(rawLon)
     if (!Number.isNaN(parsed) && parsed >= -180 && parsed <= 180) {
       setTempLon(parsed)
@@ -298,7 +311,7 @@ export function LocationPicker({
       setSource('manual')
       void handleMapLocationChange(tempLat ?? -12.0464, parsed)
     }
-    setRawLon('')
+    setRawLon(null)
   }
 
   // ── Confirm Location Workflow ───────────────────────────────────────────────
@@ -338,10 +351,8 @@ export function LocationPicker({
     )
   }
 
-  const latDisplay =
-    rawLat !== '' ? rawLat : tempLat != null ? tempLat.toFixed(7) : ''
-  const lonDisplay =
-    rawLon !== '' ? rawLon : tempLon != null ? tempLon.toFixed(7) : ''
+  const latDisplay = tempLat != null ? tempLat.toFixed(7) : ''
+  const lonDisplay = tempLon != null ? tempLon.toFixed(7) : ''
 
   return (
     <div className="space-y-3">
@@ -474,6 +485,8 @@ export function LocationPicker({
         <LocationMap
           latitude={tempLat}
           longitude={tempLon}
+          fallbackLatitude={initialCenter?.latitude}
+          fallbackLongitude={initialCenter?.longitude}
           addressText={addressDraft}
           isConfirmed={isConfirmed}
           onLocationChange={(lat, lng) => {
@@ -483,6 +496,7 @@ export function LocationPicker({
           }}
           onDragEnd={(lat, lng) => void handleMapLocationChange(lat, lng)}
           interactive={!disabled}
+          height={mapHeight}
         />
         <div className="flex items-center justify-between mt-1 text-[11px] text-slate-400 px-0.5">
           <span>Arrastra el marcador o haz clic en el mapa para ajustar la posición exacta.</span>

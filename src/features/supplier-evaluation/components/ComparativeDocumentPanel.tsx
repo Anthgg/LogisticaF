@@ -4,7 +4,7 @@ import type { ComparativeDocument, EvaluationCapabilities } from '../types/evalu
 import { comparativeDocumentStatusLabel, generateIdempotencyKey } from '../format'
 import { ErrorState, StatusPill, TableSkeleton, EmptyState } from './ui/SharedState'
 import { useSensitiveActionGuard } from '../../logistics-permissions/hooks/useSensitiveActionGuard'
-import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
+import { UNPUBLISHED_OPERATIONS } from '../../logistics-permissions/unpublished-operations'
 
 export function ComparativeDocumentPanel({
   evaluationId,
@@ -20,7 +20,7 @@ export function ComparativeDocumentPanel({
   const [submitting, setSubmitting] = useState<string | null>(null)
 
   const issueGuard = useSensitiveActionGuard({
-    permission: LOGISTICS_PERMISSIONS.supplierEvaluations.issueCCO,
+    permission: UNPUBLISHED_OPERATIONS.comparativeDocument,
   })
 
   const load = useCallback(async () => {

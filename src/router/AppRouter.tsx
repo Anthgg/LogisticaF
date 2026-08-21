@@ -456,10 +456,30 @@ export function AppRouter() {
                 <Route path="/logistics/purchasing/requisitions/mine" element={<PurchaseRequisitionsPage />} />
                 <Route path="/logistics/purchasing/requisitions/review" element={<PurchaseRequisitionReviewPage />} />
               </Route>
+              {/* Las plantillas tienen lectura publicada: GET /supplier-evaluations/templates. */}
               <Route
                 element={
                   <LogisticsAccessRoute
-                    permission={LOGISTICS_PERMISSIONS.supplierEvaluations.view}
+                    permission={LOGISTICS_PERMISSIONS.supplierEvaluations.templatesRead}
+                  />
+                }
+              >
+                <Route path="/logistics/purchasing/evaluation-templates" element={<SupplierEvaluationTemplatesPage />} />
+                <Route path="/logistics/purchasing/evaluation-templates/:templateId" element={<EvaluationTemplateDetailPage />} />
+              </Route>
+              {/*
+                El backend no publica ninguna lectura de evaluaciones: solo las cuatro
+                operaciones de escritura. Quien tenga cualquiera de ellas necesita entrar
+                aqui, asi que la puerta es esa lista, no un permiso de lectura inventado.
+              */}
+              <Route
+                element={
+                  <LogisticsAccessRoute
+                    anyOf={[
+                      LOGISTICS_PERMISSIONS.supplierEvaluations.create,
+                      LOGISTICS_PERMISSIONS.supplierEvaluations.calculate,
+                      LOGISTICS_PERMISSIONS.supplierEvaluations.recordDecision,
+                    ]}
                   />
                 }
               >
@@ -467,8 +487,6 @@ export function AppRouter() {
                 <Route path="/logistics/purchasing/evaluations/new" element={<CreateQuotationEvaluationWizard />} />
                 <Route path="/logistics/purchasing/evaluations/:evaluationId" element={<EvaluationDetailPage />} />
                 <Route path="/logistics/purchasing/evaluations/:evaluationId/decision" element={<EvaluationDetailPage initialTab="decision" />} />
-                <Route path="/logistics/purchasing/evaluation-templates" element={<SupplierEvaluationTemplatesPage />} />
-                <Route path="/logistics/purchasing/evaluation-templates/:templateId" element={<EvaluationTemplateDetailPage />} />
                 <Route path="/logistics/purchasing/evaluation-rubrics" element={<EvaluationRubricsPage />} />
                 <Route path="/logistics/purchasing/quotations/:roundId" element={<QuotationRoundDetailPage />} />
               </Route>
@@ -714,15 +732,11 @@ export function AppRouter() {
                 <Route path="/logistics/purchasing/approval-policies/:policyId/versions" element={<ApprovalPolicyDetailPage section="versions" />} />
                 <Route path="/logistics/purchasing/approval-policy-versions/:versionId" element={<ApprovalPolicyVersionPage />} />
               </Route>
-              <Route
-                element={
-                  <LogisticsAccessRoute
-                    permission={
-                      LOGISTICS_PERMISSIONS.procurementApprovals.manageDelegations
-                    }
-                  />
-                }
-              >
+              {/*
+                La pagina solo informa de que la funcion no existe: no muestra ningun
+                dato, asi que no hay nada que autorizar mas alla del acceso al modulo.
+              */}
+              <Route element={<LogisticsAccessRoute />}>
                 <Route
                   path="/logistics/purchasing/approval-delegations"
                   element={

@@ -28,13 +28,15 @@ const CATALOG = join(ROOT, 'scripts', 'contracts', 'backend-permissions.phase006
 const MAP = join(SRC, 'features', 'logistics-permissions', 'logistics-permissions-map.ts')
 
 /** SHA del backend del que se exportó el catálogo vendorizado. */
-const EXPECTED_BACKEND_SHA = 'b381e5311c6dbae04e6185612054ba36bbae91b2'
+const EXPECTED_BACKEND_SHA = 'abea8bd932d0f781d03124ca98384bb49d4cebfb'
 
 /**
- * Trinquete. Códigos declarados en el mapa que no existen en el catálogo (102) y de
- * ellos los que además se usan en pantallas reales (24). Ambos solo pueden bajar.
+ * Cero, no un trinquete. F006 PR 3.1 reconcilio los 131 codigos que el backend no
+ * conocia; dejar el listón en 131 habria dejado a CI diciendo que 131 esta estupendo y
+ * 132 es un problema. Un codigo que el backend no conoce no puede concederse nunca, asi
+ * que el unico numero correcto es ninguno.
  */
-const RATCHET = { declared: 131, inUse: 23 }
+const RATCHET = { declared: 0, inUse: 0 }
 
 const TEST_FILE = /(^|[\/])(test|tests|__tests__|e2e)[\/]|\.(test|spec)\.[tj]sx?$/
 const CODE_LITERAL = /'(logistics\.[a-z0-9_.]+)'/g

@@ -1,3 +1,17 @@
+import type { LogisticsPermissionCode as BackendPermissionCode } from './generated/permission-codes'
+
+/**
+ * Nombres simbólicos para los códigos del catálogo del backend.
+ *
+ * El `satisfies` del final es la parte importante: ata cada valor al contrato generado
+ * desde `rbac/permission_catalog.py`, de modo que un código que el backend no conozca
+ * deja de compilar. Antes esta lista se mantenía a mano y derivó hasta tener 131 códigos
+ * inexistentes —23 de ellos exigidos por pantallas vivas— sin que nada avisara: eran
+ * gates que no podían abrirse nunca.
+ *
+ * Para añadir un permiso: primero al catálogo del backend, luego regenerar el contrato
+ * (`npm run permissions:contract`) y por último darle nombre aquí.
+ */
 export const LOGISTICS_PERMISSIONS = {
   organizations: {
     read: 'logistics.organizations.read',
@@ -21,9 +35,6 @@ export const LOGISTICS_PERMISSIONS = {
   },
   roles: {
     read: 'logistics.roles.read',
-    create: 'logistics.roles.create',
-    update: 'logistics.roles.update',
-    changeStatus: 'logistics.roles.change_status',
   },
   roleAssignments: {
     read: 'logistics.role_assignments.read',
@@ -92,36 +103,18 @@ export const LOGISTICS_PERMISSIONS = {
   },
   purchaseOrdersV2: {
     view: 'logistics.purchase_orders.read',
-    generate: 'logistics.purchase_orders.generate',
+    generate: 'logistics.purchase_orders.create',
     update: 'logistics.purchase_orders.update',
-    manageLines: 'logistics.purchase_orders.manage_lines',
-    manageTerms: 'logistics.purchase_orders.manage_terms',
-    manageSchedules: 'logistics.purchase_orders.manage_schedules',
-    manageFiles: 'logistics.purchase_orders.manage_files',
-    validate: 'logistics.purchase_orders.validate',
-    submitForApproval: 'logistics.purchase_orders.submit_approval',
+    submitForApproval: 'logistics.purchase_orders.update',
     approveTransitional: 'logistics.purchase_orders.approve',
-    reject: 'logistics.purchase_orders.reject',
-    return: 'logistics.purchase_orders.return',
+    reject: 'logistics.purchase_orders.approve',
+    return: 'logistics.purchase_orders.approve',
     issue: 'logistics.purchase_orders.issue',
-    preview: 'logistics.purchase_orders.preview',
-    download: 'logistics.purchase_orders.download',
-    reprint: 'logistics.purchase_orders.reprint',
-    createDispatch: 'logistics.purchase_orders.create_dispatch',
-    send: 'logistics.purchase_orders.send',
-    retryDispatch: 'logistics.purchase_orders.retry_dispatch',
-    markManualDelivery: 'logistics.purchase_orders.mark_manual_delivery',
-    createAcknowledgement: 'logistics.purchase_orders.create_acknowledgement',
     cancel: 'logistics.purchase_orders.cancel',
-    createAmendment: 'logistics.purchase_orders.create_amendment',
-    viewHistory: 'logistics.purchase_orders.read_history',
   },
   procurementApprovals: {
     view: 'logistics.procurement_approvals.read',
     decide: 'logistics.procurement_approvals.decide',
-    submit: 'logistics.procurement_approvals.submit',
-    viewIntegrity: 'logistics.procurement_approvals.integrity.read',
-    manageDelegations: 'logistics.procurement_approvals.delegations.manage',
     policiesRead: 'logistics.procurement_approval_policies.read',
     policiesCreate: 'logistics.procurement_approval_policies.create',
     policiesUpdate: 'logistics.procurement_approval_policies.update',
@@ -190,50 +183,15 @@ export const LOGISTICS_PERMISSIONS = {
     read: 'logistics.drivers.read',
     create: 'logistics.drivers.create',
     update: 'logistics.drivers.update',
-    activate: 'logistics.drivers.activate',
     manage: 'logistics.drivers.create',
-    block: 'logistics.drivers.block',
-    verify: 'logistics.drivers.verify',
-    manageIdentity: 'logistics.driver_identity.manage',
-    viewSensitiveIdentity: 'logistics.driver_identity.read_sensitive',
-    manageLicenses: 'logistics.driver_licenses.manage',
-    manageCategories: 'logistics.driver_license_categories.manage',
-    manageCarrier: 'logistics.driver_carrier_assignments.manage',
-    manageContacts: 'logistics.driver_contacts.manage',
-    viewPhoto: 'logistics.driver_photos.read',
-    managePhoto: 'logistics.driver_photos.manage',
-    manageDocuments: 'logistics.driver_documents.manage',
-    manageRestrictions: 'logistics.driver_restrictions.manage',
-    viewHistory: 'logistics.drivers.read_history',
-    createVersion: 'logistics.driver_versions.create',
-    activateVersion: 'logistics.driver_versions.activate',
-    evaluateVehicleCompatibility: 'logistics.drivers.evaluate_compatibility',
+    manageCategories: 'logistics.drivers.update',
   },
   supplierEvaluations: {
-    view: 'logistics.supplier_evaluations.read',
-    create: 'logistics.supplier_evaluations.create',
-    update: 'logistics.supplier_evaluations.update',
-    validate: 'logistics.supplier_evaluations.validate',
-    start: 'logistics.supplier_evaluations.start',
-    calculate: 'logistics.supplier_evaluations.calculate',
-    recalculate: 'logistics.supplier_evaluations.recalculate',
-    viewPrices: 'logistics.supplier_evaluations.view_prices',
-    viewRisk: 'logistics.supplier_evaluations.view_risk',
-    createManualScore: 'logistics.supplier_evaluations.create_manual_score',
-    reviewManualScore: 'logistics.supplier_evaluations.review_manual_score',
-    requestOverride: 'logistics.supplier_evaluations.request_override',
-    approveOverride: 'logistics.supplier_evaluations.approve_override',
-    disqualify: 'logistics.supplier_evaluations.disqualify',
-    reverseDisqualification:
-      'logistics.supplier_evaluations.reverse_disqualification',
-    createDecision: 'logistics.supplier_evaluations.create_decision',
-    recordDecision: 'logistics.supplier_evaluations.record_decision',
-    supersedeDecision: 'logistics.supplier_evaluations.supersede_decision',
-    previewCCO: 'logistics.supplier_evaluations.preview_cco',
-    issueCCO: 'logistics.supplier_evaluations.issue_cco',
-    export: 'logistics.supplier_evaluations.export',
-    viewHistory: 'logistics.supplier_evaluations.read_history',
-    manageTemplates: 'logistics.supplier_evaluations.manage_templates',
+    templatesRead: 'logistics.supplier_evaluation_templates.read',
+    create: 'logistics.quotation_evaluations.create',
+    calculate: 'logistics.quotation_evaluations.calculate',
+    recordDecision: 'logistics.quotation_evaluation_decisions.record',
+    manageTemplates: 'logistics.supplier_evaluation_templates.manage',
   },
   gateControl: {
     view: 'logistics.gate_check_ins.read',
@@ -295,31 +253,6 @@ export const LOGISTICS_PERMISSIONS = {
     viewReceivingPreparation: 'logistics.unloading_operations.read',
   },
   inboundReceiving: {
-    view: 'logistics.inbound_receiving.read',
-    create: 'logistics.inbound_receiving.create',
-    prepare: 'logistics.inbound_receiving.prepare',
-    start: 'logistics.inbound_receiving.start',
-    scan: 'logistics.inbound_receiving.scan',
-    batchScan: 'logistics.inbound_receiving.batch_scan',
-    manualEntry: 'logistics.inbound_receiving.manual_entry',
-    captureLot: 'logistics.inbound_receiving.capture_lot',
-    captureSerial: 'logistics.inbound_receiving.capture_serial',
-    captureExpiration: 'logistics.inbound_receiving.capture_expiration',
-    resolveUnknown: 'logistics.inbound_receiving.resolve_unknown',
-    compensateScan: 'logistics.inbound_receiving.compensate_scan',
-    pause: 'logistics.inbound_receiving.pause',
-    resume: 'logistics.inbound_receiving.resume',
-    validate: 'logistics.inbound_receiving.validate',
-    completePartial: 'logistics.inbound_receiving.complete_partial',
-    completeTotal: 'logistics.inbound_receiving.complete_total',
-    completeWithCandidates: 'logistics.inbound_receiving.complete_with_candidates',
-    cancel: 'logistics.inbound_receiving.cancel',
-    viewSensitiveIdentifiers: 'logistics.inbound_receiving.view_sensitive_identifiers',
-    viewDifferenceCandidates: 'logistics.inbound_receiving.view_difference_candidates',
-    acknowledgeCandidate: 'logistics.inbound_receiving.acknowledge_candidate',
-    viewIntegrity: 'logistics.inbound_receiving.view_integrity',
-    viewHistory: 'logistics.inbound_receiving.view_history',
-    viewPhase040Preparation: 'logistics.inbound_receiving.view_phase_040_preparation',
   },
   receptionDifferences: {
     view: 'logistics.reception_difference_cases.read',
@@ -354,23 +287,9 @@ export const LOGISTICS_PERMISSIONS = {
   files: {
     read: 'logistics.files.read',
     upload: 'logistics.files.upload',
-    uploadVersion: 'logistics.files.upload_version',
-    updateMetadata: 'logistics.files.update_metadata',
-    preview: 'logistics.files.preview',
     download: 'logistics.files.download',
-    associate: 'logistics.files.associate',
     archive: 'logistics.files.archive',
     restore: 'logistics.files.restore',
-    requestDeletion: 'logistics.files.request_deletion',
-    viewHistory: 'logistics.files.view_history',
-    viewIntegrity: 'logistics.files.view_integrity',
-    manageAccess: 'logistics.files.manage_access',
-    createEvidence: 'logistics.evidence.create',
-    acceptEvidence: 'logistics.evidence.accept',
-    revokeEvidence: 'logistics.evidence.revoke',
-    viewCustody: 'logistics.evidence.view_custody',
-    applyLegalHold: 'logistics.files.apply_legal_hold',
-    releaseLegalHold: 'logistics.files.release_legal_hold',
   },
   qualityInspectionPlans: {
     read: 'logistics.quality_plan.read',
@@ -396,26 +315,14 @@ export const LOGISTICS_PERMISSIONS = {
     viewFutureTemplate: 'logistics.quality_plan.read',
   },
   qualityTolerances: {
-    read: 'logistics.quality_tolerances.read',
-    create: 'logistics.quality_tolerances.create',
-    update: 'logistics.quality_tolerances.update',
-    activate: 'logistics.quality_tolerances.activate',
-    retire: 'logistics.quality_tolerances.retire',
-    clone: 'logistics.quality_tolerances.clone',
+    read: 'logistics.quality_plan.read',
+    create: 'logistics.quality_plan.create_tolerance',
   },
   qualitySamplingPlans: {
-    read: 'logistics.quality_sampling_plans.read',
-    create: 'logistics.quality_sampling_plans.create',
-    update: 'logistics.quality_sampling_plans.update',
-    activate: 'logistics.quality_sampling_plans.activate',
-    retire: 'logistics.quality_sampling_plans.retire',
-    clone: 'logistics.quality_sampling_plans.clone',
+    read: 'logistics.quality_plan.read',
+    create: 'logistics.quality_plan.create_sampling',
   },
   qualityCertificateRequirements: {
-    read: 'logistics.quality_certificate_requirements.read',
-    create: 'logistics.quality_certificate_requirements.create',
-    update: 'logistics.quality_certificate_requirements.update',
-    deactivate: 'logistics.quality_certificate_requirements.deactivate',
   },
   quarantine: {
     view: 'logistics.quality_quarantine.read',
@@ -494,26 +401,19 @@ export const LOGISTICS_PERMISSIONS = {
   },
   inventoryLedger: {
     view: 'logistics.inventory_ledger.read',
-    viewAll: 'logistics.inventory_ledger.view_all',
-    viewSources: 'logistics.inventory_ledger.view_sources',
-    viewSnapshot: 'logistics.inventory_ledger.view_snapshot',
-    viewIntegrity: 'logistics.inventory_ledger.view_integrity',
-    viewHistory: 'logistics.inventory_ledger.view_history',
-    viewSensitive: 'logistics.inventory_ledger.view_sensitive',
     validatePreparedEvent: 'logistics.inventory_ledger.validate_prepared_event',
     postPreparedEvent: 'logistics.inventory_ledger.post_prepared_event',
     retryFailedPosting: 'logistics.inventory_ledger.retry_failed_posting',
-    postBatch: 'logistics.inventory_ledger.post_batch',
     requestCompensation: 'logistics.inventory_ledger.request_compensation',
     reviewCompensation: 'logistics.inventory_ledger.review_compensation',
     approveCompensation: 'logistics.inventory_ledger.approve_compensation',
     executeCompensation: 'logistics.inventory_ledger.execute_compensation',
-    export: 'logistics.inventory_ledger.export',
-    verifyPartition: 'logistics.inventory_ledger.verify_partition',
+    export: 'logistics.inventory_kardex.export',
+    verifyPartition: 'logistics.inventory_ledger.verify',
     createCheckpoint: 'logistics.inventory_ledger.create_checkpoint',
     reconcile: 'logistics.inventory_ledger.reconcile',
-    viewBalancePreparation: 'logistics.inventory_ledger.view_balance_preparation',
-    viewTraceabilityPreparation: 'logistics.inventory_ledger.view_traceability_preparation',
+    viewBalancePreparation: 'logistics.inventory_ledger.read_balance_preparation',
+    viewTraceabilityPreparation: 'logistics.inventory_ledger.read_traceability_preparation',
   },
   // Fase 045 · Saldos de inventario.
   // `read`, `rebuild` y `rebuildViaLedger` son los códigos que exige el router
@@ -523,20 +423,18 @@ export const LOGISTICS_PERMISSIONS = {
     rebuild: 'logistics.inventory.rebuild',
     rebuildViaLedger: 'logistics.inventory_ledger.reconcile',
     view: 'logistics.inventory_ledger.read',
-    viewAll: 'logistics.inventory_ledger.view_all',
     viewPositions: 'logistics.inventory_ledger.read',
     viewMovements: 'logistics.inventory_ledger.read',
     viewFormulas: 'logistics.inventory_ledger.read',
     viewFreshness: 'logistics.inventory_ledger.read',
-    viewIntegrity: 'logistics.inventory_ledger.view_integrity',
     viewHistorical: 'logistics.inventory_ledger.read',
     reconcile: 'logistics.inventory_ledger.reconcile',
     reviewReconciliation: 'logistics.inventory_ledger.reconcile',
     createCheckpoint: 'logistics.inventory_ledger.create_checkpoint',
-    export: 'logistics.inventory_ledger.export',
+    export: 'logistics.inventory_kardex.export',
     validateAvailability: 'logistics.inventory_ledger.read',
   },
-} as const
+} as const satisfies Record<string, Record<string, BackendPermissionCode>>
 
 export type LogisticsPermissionCode =
   | (typeof LOGISTICS_PERMISSIONS)[keyof typeof LOGISTICS_PERMISSIONS][keyof (typeof LOGISTICS_PERMISSIONS)[keyof typeof LOGISTICS_PERMISSIONS]]
@@ -546,11 +444,3 @@ export type LogisticsPermissionPath = keyof typeof LOGISTICS_PERMISSIONS
 export type LogisticsPermissionActionGroup<T extends LogisticsPermissionPath> =
   (typeof LOGISTICS_PERMISSIONS)[T]
 
-export function isLogisticsPermissionCode(
-  value: string,
-): value is LogisticsPermissionCode {
-  return (
-    typeof value === 'string' &&
-    value.startsWith('logistics.')
-  )
-}

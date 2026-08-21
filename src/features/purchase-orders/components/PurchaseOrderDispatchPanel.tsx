@@ -16,7 +16,7 @@ import { dispatchChannelLabel, dispatchStatusLabel, generateIdempotencyKey } fro
 import { EmptyState, ErrorState, StatusPill } from './ui'
 import { Modal } from './ui'
 import { useSensitiveActionGuard } from '../../logistics-permissions/hooks/useSensitiveActionGuard'
-import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
+import { UNPUBLISHED_OPERATIONS } from '../../logistics-permissions/unpublished-operations'
 
 const CHANNELS: DispatchChannel[] = ['EMAIL', 'PORTAL', 'EDI', 'MANUAL']
 
@@ -41,7 +41,7 @@ export function PurchaseOrderDispatchPanel({
   const [error, setError] = useState<string | null>(null)
 
   const sendGuard = useSensitiveActionGuard({
-    permission: LOGISTICS_PERMISSIONS.purchaseOrdersV2.send,
+    permission: UNPUBLISHED_OPERATIONS.purchaseOrderDispatch,
   })
 
   const handleCreate = async () => {

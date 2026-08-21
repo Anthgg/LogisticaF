@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { referenceCatalogsApi } from '../../api/reference-catalogs-api'
+import { SearchableCombobox, type ComboboxOption } from '../ui/SearchableCombobox'
 import type {
   CountryCatalogItem,
   TimezoneCatalogItem,
@@ -12,6 +13,7 @@ import { getErrorMessage } from '../../utils/errors'
  *
  * Los tres comparten el mismo contrato: muestran el nombre humano y persisten el
  * código canónico del backend. Ninguno lleva la lista embebida.
+ * Utilizan SearchableCombobox controlado en React para eliminar el menú nativo del SO.
  */
 
 type SelectState<T> = {
@@ -51,19 +53,6 @@ function useCatalog<T>(load: () => Promise<T[]>, deps: unknown[]): SelectState<T
   return { items, isLoading, error }
 }
 
-function placeholder(
-  isLoading: boolean,
-  error: string | null,
-  isEmpty: boolean,
-  idle: string,
-  emptyLabel: string,
-): string {
-  if (isLoading) return 'Cargando…'
-  if (error) return 'Error al cargar'
-  if (isEmpty) return emptyLabel
-  return idle
-}
-
 export function CountrySelect({
   value,
   onChange,
@@ -82,31 +71,34 @@ export function CountrySelect({
     [],
   )
 
+  const options: ComboboxOption[] = items.map((item) => ({
+    value: item.code,
+    label: item.name,
+    code: item.code,
+  }))
+
+  const placeholder = isLoading
+    ? 'Cargando…'
+    : error
+      ? 'Error al cargar países'
+      : items.length === 0
+        ? 'Sin países'
+        : 'Selecciona un país'
+
   return (
-    <div className="field">
-      <label className="field__label" htmlFor={id}>
-        {label}
-      </label>
-      <div className="field__control">
-        <select
-          id={id}
-          className="field__input"
-          value={value}
-          disabled={disabled || isLoading || Boolean(error)}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">
-            {placeholder(isLoading, error, items.length === 0, 'Selecciona un país', 'Sin países')}
-          </option>
-          {items.map((item) => (
-            <option key={item.code} value={item.code}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      {error && <p className="field__error">{error}</p>}
-    </div>
+    <SearchableCombobox
+      id={id}
+      label={label}
+      value={value}
+      options={options}
+      onChange={onChange}
+      disabled={disabled || isLoading || Boolean(error)}
+      isLoading={isLoading}
+      error={error}
+      placeholder={placeholder}
+      searchPlaceholder="Buscar país..."
+      emptyMessage="Sin países"
+    />
   )
 }
 
@@ -141,37 +133,34 @@ export function TimezoneSelect({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, isLoading, error, value])
 
+  const options: ComboboxOption[] = items.map((item) => ({
+    value: item.code,
+    label: `${item.name} (${item.code})`,
+    code: item.code,
+  }))
+
+  const placeholder = isLoading
+    ? 'Cargando…'
+    : error
+      ? 'Error al cargar zonas horarias'
+      : items.length === 0
+        ? 'Sin zonas horarias'
+        : 'Selecciona una zona horaria'
+
   return (
-    <div className="field">
-      <label className="field__label" htmlFor={id}>
-        {label}
-      </label>
-      <div className="field__control">
-        <select
-          id={id}
-          className="field__input"
-          value={value}
-          disabled={disabled || isLoading || Boolean(error)}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">
-            {placeholder(
-              isLoading,
-              error,
-              items.length === 0,
-              'Selecciona una zona horaria',
-              'Sin zonas para este país',
-            )}
-          </option>
-          {items.map((item) => (
-            <option key={item.code} value={item.code}>
-              {item.name} — {item.code}
-            </option>
-          ))}
-        </select>
-      </div>
-      {error && <p className="field__error">{error}</p>}
-    </div>
+    <SearchableCombobox
+      id={id}
+      label={label}
+      value={value}
+      options={options}
+      onChange={onChange}
+      disabled={disabled || isLoading || Boolean(error)}
+      isLoading={isLoading}
+      error={error}
+      placeholder={placeholder}
+      searchPlaceholder="Buscar zona horaria..."
+      emptyMessage="Sin zonas horarias"
+    />
   )
 }
 
@@ -193,30 +182,33 @@ export function WarehouseTypeSelect({
     [],
   )
 
+  const options: ComboboxOption[] = items.map((item) => ({
+    value: item.code,
+    label: item.name,
+    code: item.code,
+  }))
+
+  const placeholder = isLoading
+    ? 'Cargando…'
+    : error
+      ? 'Error al cargar tipos'
+      : items.length === 0
+        ? 'Sin tipos'
+        : 'Selecciona un tipo'
+
   return (
-    <div className="field">
-      <label className="field__label" htmlFor={id}>
-        {label}
-      </label>
-      <div className="field__control">
-        <select
-          id={id}
-          className="field__input"
-          value={value}
-          disabled={disabled || isLoading || Boolean(error)}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">
-            {placeholder(isLoading, error, items.length === 0, 'Selecciona un tipo', 'Sin tipos')}
-          </option>
-          {items.map((item) => (
-            <option key={item.code} value={item.code}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      {error && <p className="field__error">{error}</p>}
-    </div>
+    <SearchableCombobox
+      id={id}
+      label={label}
+      value={value}
+      options={options}
+      onChange={onChange}
+      disabled={disabled || isLoading || Boolean(error)}
+      isLoading={isLoading}
+      error={error}
+      placeholder={placeholder}
+      searchPlaceholder="Buscar tipo de almacén..."
+      emptyMessage="Sin tipos"
+    />
   )
 }

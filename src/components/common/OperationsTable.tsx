@@ -33,14 +33,14 @@ export function OperationsTable<T>({
   }
 
   return (
-    <div className="operations-table overflow-x-auto [webkit-overflow-scrolling:touch]">
+    <div className="operations-table w-full overflow-x-auto [webkit-overflow-scrolling:touch]">
       <table className="w-full border-collapse text-left text-xs">
         <thead>
-          <tr>
+          <tr className="border-b border-slate-200 bg-slate-50/90">
             {columns.map((column) => (
               <th
                 key={column.key}
-                className={`bg-[#F0F4F7] text-faint font-semibold text-[10px] uppercase tracking-[0.05em] px-3.5 py-2.5 border-b border-[#DDE4E8] whitespace-nowrap ${
+                className={`text-slate-500 font-semibold text-[10px] uppercase tracking-wider px-3.5 py-2.5 whitespace-nowrap ${
                   column.align === 'right' ? 'text-right' : 'text-left'
                 }`}
               >
@@ -49,14 +49,14 @@ export function OperationsTable<T>({
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-slate-100">
           {safeRows.map((row) => (
-            <tr key={getRowKey(row)} className="group">
+            <tr key={getRowKey(row)} className="group hover:bg-slate-50/80 transition-colors">
               {columns.map((column) => (
                 <td
                   key={column.key}
                   data-label={column.label || 'Acciones'}
-                  className={`px-3.5 py-2.5 border-b border-[#EEF2F5] text-ink align-middle group-last:border-b-0 group-hover:bg-[#FAFBFC] ${
+                  className={`px-3.5 py-2.5 text-slate-800 align-middle ${
                     column.align === 'right' ? 'text-right' : ''
                   }`}
                 >

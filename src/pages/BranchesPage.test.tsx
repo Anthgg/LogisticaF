@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Route, Routes } from 'react-router-dom'
 import { BranchesPage } from './BranchesPage'
 import { logisticsApi } from '../api/logistics-api'
 import { geographyApi } from '../api/geography-api'
@@ -123,6 +124,7 @@ describe('BranchesPage', () => {
     })
     vi.mocked(geographyApi.listDepartments).mockResolvedValue([
       { code: '15', name: 'LIMA' },
+      { code: '04', name: 'AREQUIPA' },
     ])
     vi.mocked(referenceCatalogsApi.listTimezones).mockResolvedValue([
       { code: 'America/Lima', name: 'Lima', country_code: 'PE' },
@@ -138,15 +140,22 @@ describe('BranchesPage', () => {
     expect(screen.getByText('Av. Argentina 123')).toBeInTheDocument()
   })
 
-  it('opens new branch modal when clicking button', async () => {
+  it('navigates to the dedicated branch form when clicking the primary action', async () => {
     const user = userEvent.setup()
-    renderWithAuth(<BranchesPage />)
+    renderWithAuth(
+      <Routes>
+        <Route path="/logistics/branches" element={<BranchesPage />} />
+        <Route path="/logistics/branches/new" element={<h1>Nueva sede · página dedicada</h1>} />
+      </Routes>,
+      { initialEntries: ['/logistics/branches'] },
+    )
 
     await screen.findByText('Sede Principal')
     const newBtn = screen.getByRole('button', { name: 'Nueva sede' })
     await user.click(newBtn)
 
-    expect(await screen.findByRole('heading', { name: 'Nueva sede' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Nombre')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Nueva sede · página dedicada' }),
+    ).toBeInTheDocument()
   })
 })

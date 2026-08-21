@@ -135,6 +135,12 @@ export interface LogisticsWarehouseResponse {
   name: string
   warehouse_type: string
   address: string | null
+  uses_branch_location?: boolean
+  latitude?: number | null
+  longitude?: number | null
+  effective_latitude?: number | null
+  effective_longitude?: number | null
+  location_source?: 'BRANCH' | 'WAREHOUSE'
   district: string | null
   province: string | null
   department: string | null
@@ -156,6 +162,9 @@ export interface LogisticsWarehouseCreate {
   warehouse_type: string
   /** Dirección propia del almacén dentro de la sede, no la de la sede. */
   address?: string | null
+  uses_branch_location?: boolean
+  latitude?: number | null
+  longitude?: number | null
   capacity?: number | null
   is_default?: boolean
   /**
@@ -166,6 +175,16 @@ export interface LogisticsWarehouseCreate {
   district?: string | null
   province?: string | null
   department?: string | null
+}
+
+export interface LogisticsWarehouseUpdate {
+  name?: string
+  warehouse_type?: string
+  address?: string | null
+  capacity?: number | null
+  uses_branch_location?: boolean
+  latitude?: number | null
+  longitude?: number | null
 }
 
 export interface LogisticsWarehouseStatusUpdate {

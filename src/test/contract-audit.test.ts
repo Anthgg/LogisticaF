@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 
 // Regenerado en F005.4: el backend añadió los 2 endpoints de geocoding
 // (986 -> 988 operaciones).
-const EXPECTED_BACKEND_SHA = 'b442564c80096cd937b331aec65ea06e87a867f7'
+const EXPECTED_BACKEND_SHA = '742a4ac976f2a79d035cdfdf0893082a679ecb45'
 const manifestPath = resolve(process.cwd(), 'scripts', 'contracts', 'backend-routes.phase045.json')
 const auditPath = resolve(process.cwd(), 'scripts', 'audit-api-contract.mjs')
 

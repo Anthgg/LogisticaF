@@ -70,22 +70,35 @@ export interface Warehouse {
   branch_name?: string
   warehouse_type: WarehouseType
   status: WarehouseStatus
-  address_text: string
-  timezone: string
-  manager_user_name: string | null
-  is_receiving_enabled: boolean
-  is_dispatch_enabled: boolean
-  is_inventory_enabled: boolean
-  has_temperature_control: boolean
-  has_hazmat: boolean
-  total_locations: number
-  active_locations: number
-  blocked_locations: number
-  unmapped_locations: number
-  active_layout_version: number | null
+  address_text?: string | null
+  address?: string | null
+  uses_branch_location?: boolean
+  latitude?: number | null
+  longitude?: number | null
+  effective_latitude?: number | null
+  effective_longitude?: number | null
+  location_source?: 'BRANCH' | 'WAREHOUSE'
+  timezone?: string | null
+  manager_user_name?: string | null
+  is_receiving_enabled?: boolean
+  is_dispatch_enabled?: boolean
+  is_inventory_enabled?: boolean
+  has_temperature_control?: boolean
+  has_hazmat?: boolean
+  receiving_enabled?: boolean
+  dispatch_enabled?: boolean
+  inventory_enabled?: boolean
+  temperature_controlled?: boolean
+  hazardous_materials_allowed?: boolean
+  total_locations?: number
+  active_locations?: number
+  blocked_locations?: number
+  unmapped_locations?: number
+  active_layout_version?: number | null
+  layout_status?: string | null
   created_at: string
   updated_at: string
-  capabilities: WarehouseCapabilities
+  capabilities?: WarehouseCapabilities
 }
 
 export interface WarehouseCreate {

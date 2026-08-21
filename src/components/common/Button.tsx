@@ -11,14 +11,14 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses = {
   primary:   'bg-primary text-white hover:bg-primary-mid border-transparent',
-  secondary: 'bg-white text-ink border-[#DDE4E8] hover:bg-[#F0F4F7] hover:border-[#C8D4DC]',
+  secondary: 'bg-white text-ink border-slate-300 hover:bg-slate-50 hover:border-slate-400',
   danger:    'bg-danger text-white border-transparent hover:brightness-90',
-  ghost:     'bg-transparent text-muted border-transparent hover:bg-[#F0F4F7] hover:text-ink',
+  ghost:     'bg-transparent text-muted border-transparent hover:bg-slate-100 hover:text-ink',
 }
 
 const sizeClasses = {
-  small:  'min-h-11 px-3 text-[11px] rounded-lg',
-  medium: 'min-h-11 px-3.5 text-xs rounded-lg',
+  small:  'h-8 px-2.5 text-[11px] rounded-lg',
+  medium: 'h-9 px-3.5 text-xs rounded-lg',
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(

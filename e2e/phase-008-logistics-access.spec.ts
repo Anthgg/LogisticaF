@@ -17,7 +17,7 @@ test.describe('Fase 008 - Acceso logístico', () => {
       warehouses: ['wh-1'],
     })
     await page.goto('/logistics/warehouses')
-    await expect(page.getByRole('heading', { name: 'Almacenes' })).toBeVisible({ timeout: 15000 })
+    await expect(page.getByPlaceholder('Buscar almacén por nombre o código…')).toBeVisible({ timeout: 15000 })
   })
 
   test('usuario sin acceso logístico ve pantalla controlada', async ({
@@ -75,7 +75,7 @@ test.describe('Fase 008 - Cambio de contexto', () => {
       warehouses: ['wh-1'],
     })
     await page.goto('/logistics/warehouses')
-    await expect(page.getByRole('heading', { name: 'Almacenes' })).toBeVisible({ timeout: 15000 })
+    await expect(page.getByPlaceholder('Buscar almacén por nombre o código…')).toBeVisible({ timeout: 15000 })
     await expect(page.getByRole('button', { name: /Cambiar contexto/i })).toBeVisible({ timeout: 15000 })
   })
 
@@ -106,7 +106,7 @@ test.describe('Fase 008 - Logout y sesión', () => {
       warehouses: ['wh-1'],
     })
     await page.goto('/logistics/warehouses')
-    await expect(page.getByRole('heading', { name: 'Almacenes' })).toBeVisible({ timeout: 15000 })
+    await expect(page.getByPlaceholder('Buscar almacén por nombre o código…')).toBeVisible({ timeout: 15000 })
 
     // Simular logout: el backend revoca la sesión y /auth/me devuelve 401
     await page.route('**/api/auth/logout', (route) =>
@@ -131,5 +131,40 @@ test.describe('Fase 008 - Logout y sesión', () => {
     // (el flujo real requiere clic en logout del UserMenu)
     await page.goto('/dashboard')
     await expect(page).toHaveURL(/\/login/)
+  })
+})
+
+test.describe('Rediseño de formularios estructurales', () => {
+  test('organización usa página dedicada, resumen lateral y preview de país', async ({ page }) => {
+    await installApiMocks(
+      page,
+      {},
+      {
+        enabled: true,
+        permissions: ['logistics.organizations.read', 'logistics.organizations.create'],
+        roles: ['LOGISTICS_ADMIN'],
+        organizations: ['org-1'],
+        branches: ['branch-1'],
+        warehouses: ['wh-1'],
+      },
+      {
+        '**/api/logistics/catalogs/countries': {
+          status: 200,
+          body: [{ code: 'PE', name: 'Perú' }],
+        },
+        '**/api/logistics/catalogs/timezones*': {
+          status: 200,
+          body: [{ code: 'America/Lima', name: 'Lima', country_code: 'PE' }],
+        },
+      },
+    )
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.goto('/logistics/organizations/new')
+
+    await expect(page.getByRole('heading', { name: 'Nueva organización' })).toBeVisible({ timeout: 15000 })
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(page.getByLabel('Resumen contextual')).toBeVisible()
+    await expect(page.getByTestId('country-map-preview')).toContainText('Perú (PE)')
+    await expect(page.getByLabel('Mapa de contexto de Perú')).toBeVisible()
   })
 })

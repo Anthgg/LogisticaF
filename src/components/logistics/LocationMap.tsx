@@ -28,6 +28,10 @@ export interface LocationMapProps {
   latitude?: number | null
   /** WGS84 longitude (-180 to 180) */
   longitude?: number | null
+  /** Viewport center used only while no selected coordinates exist. */
+  fallbackLatitude?: number | null
+  /** Viewport center used only while no selected coordinates exist. */
+  fallbackLongitude?: number | null
   /** Zoom level (0-22), default 15 */
   zoom?: number
   /** Formatted human address to show in the marker popup */
@@ -40,6 +44,12 @@ export interface LocationMapProps {
   onDragEnd?: (latitude: number, longitude: number) => void
   /** Allow or disable user interaction */
   interactive?: boolean
+  /** Center the viewport without rendering an exact-location marker. */
+  showMarker?: boolean
+  /** Explicit map height in pixels. */
+  height?: number
+  /** Accessible label for the map region. */
+  ariaLabel?: string
   /** CSS class for the container div */
   className?: string
   /** MapLibre style URL — defaults to VITE_MAP_STYLE_URL or OSM raster tiles */
@@ -197,12 +207,17 @@ const DEFAULT_ZOOM = 15
 export function LocationMap({
   latitude,
   longitude,
+  fallbackLatitude,
+  fallbackLongitude,
   zoom = DEFAULT_ZOOM,
   addressText,
   isConfirmed = false,
   onLocationChange,
   onDragEnd,
   interactive = true,
+  showMarker = true,
+  height = 340,
+  ariaLabel = 'Mapa interactivo de ubicación',
   className,
   styleUrl,
 }: LocationMapProps) {
@@ -212,8 +227,26 @@ export function LocationMap({
   const popupRef = useRef<MapLibrePopup | null>(null)
   const pinElementRef = useRef<HTMLElement | null>(null)
 
-  const propsRef = useRef({ latitude, longitude, zoom, addressText, isConfirmed })
-  propsRef.current = { latitude, longitude, zoom, addressText, isConfirmed }
+  const propsRef = useRef({
+    latitude,
+    longitude,
+    fallbackLatitude,
+    fallbackLongitude,
+    zoom,
+    addressText,
+    isConfirmed,
+    showMarker,
+  })
+  propsRef.current = {
+    latitude,
+    longitude,
+    fallbackLatitude,
+    fallbackLongitude,
+    zoom,
+    addressText,
+    isConfirmed,
+    showMarker,
+  }
 
   const [mapError, setMapError] = useState<string | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
@@ -231,9 +264,13 @@ export function LocationMap({
 
         const curProps = propsRef.current
         const initialCoords = curProps.latitude != null && curProps.longitude != null
+        const fallbackCoords =
+          curProps.fallbackLatitude != null && curProps.fallbackLongitude != null
         const center: [number, number] = initialCoords
           ? wgs84ToMapLibreLngLat(curProps.latitude!, curProps.longitude!)
-          : DEFAULT_CENTER_PERU
+          : fallbackCoords
+            ? wgs84ToMapLibreLngLat(curProps.fallbackLatitude!, curProps.fallbackLongitude!)
+            : DEFAULT_CENTER_PERU
 
         const style = resolveStyleUrl(styleUrl)
 
@@ -242,7 +279,7 @@ export function LocationMap({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           style: style as any,
           center,
-          zoom: initialCoords ? (curProps.zoom ?? zoom) : 6,
+          zoom: initialCoords || fallbackCoords ? (curProps.zoom ?? zoom) : 6,
           interactive,
         })
 
@@ -277,7 +314,7 @@ export function LocationMap({
           anchor: 'bottom',
         })
 
-        if (initialCoords) {
+        if (initialCoords && curProps.showMarker) {
           const lngLat = wgs84ToMapLibreLngLat(curProps.latitude!, curProps.longitude!)
           marker.setLngLat(lngLat)
           popup.setHTML(buildPopupHtml(curProps.addressText, curProps.latitude!, curProps.longitude!, curProps.isConfirmed ?? false))
@@ -331,7 +368,12 @@ export function LocationMap({
         markerRef.current = marker
 
         // Handle case where coords arrived while initMap was in flight
-        if (!initialCoords && propsRef.current.latitude != null && propsRef.current.longitude != null) {
+        if (
+          !initialCoords &&
+          propsRef.current.showMarker &&
+          propsRef.current.latitude != null &&
+          propsRef.current.longitude != null
+        ) {
           const lat = propsRef.current.latitude
           const lon = propsRef.current.longitude
           const lngLat = wgs84ToMapLibreLngLat(lat, lon)
@@ -369,15 +411,19 @@ export function LocationMap({
 
     if (latitude != null && longitude != null) {
       const lngLat = wgs84ToMapLibreLngLat(latitude, longitude)
-      marker.setLngLat(lngLat)
+      if (showMarker) {
+        marker.setLngLat(lngLat)
 
-      if (popup) {
-        popup.setHTML(buildPopupHtml(addressText, latitude, longitude, isConfirmed))
-        marker.setPopup(popup)
+        if (popup) {
+          popup.setHTML(buildPopupHtml(addressText, latitude, longitude, isConfirmed))
+          marker.setPopup(popup)
+        }
+
+        marker.addTo(map)
+      } else {
+        marker.remove()
+        popup?.remove()
       }
-
-      // Add to map if not already present
-      marker.addTo(map)
 
       // Center map smoothly around the marker
       map.flyTo({ center: lngLat, zoom: zoom ?? DEFAULT_ZOOM, duration: 500 })
@@ -386,8 +432,24 @@ export function LocationMap({
       // Remove marker if coordinates are cleared
       marker.remove()
       popup?.remove()
+      if (fallbackLatitude != null && fallbackLongitude != null) {
+        map.flyTo({
+          center: wgs84ToMapLibreLngLat(fallbackLatitude, fallbackLongitude),
+          zoom: zoom ?? DEFAULT_ZOOM,
+          duration: 500,
+        })
+      }
     }
-  }, [latitude, longitude, zoom, addressText, isConfirmed])
+  }, [
+    latitude,
+    longitude,
+    fallbackLatitude,
+    fallbackLongitude,
+    zoom,
+    addressText,
+    isConfirmed,
+    showMarker,
+  ])
 
   // ── Cleanup on Unmount ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -408,8 +470,8 @@ export function LocationMap({
       <div
         ref={containerRef}
         className="w-full rounded-lg overflow-hidden"
-        style={{ height: 340, minHeight: 260, maxHeight: 420 }}
-        aria-label="Mapa interactivo de ubicación"
+        style={{ height, minHeight: 220 }}
+        aria-label={ariaLabel}
       />
 
       {/* Loading overlay */}

@@ -9,7 +9,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nContext } from '../../contexts/i18n-context'
 import { ApiRequestError } from '../../types/api'
@@ -24,7 +24,10 @@ import {
   type LogisticsAuthorizationState,
 } from '../../features/logistics-permissions/contexts/logistics-authorization-context'
 import { BranchesPage } from '../BranchesPage'
+import { BranchFormPage } from '../BranchFormPage'
+import { OrganizationFormPage } from '../OrganizationFormPage'
 import { OrganizationsPage } from '../OrganizationsPage'
+import { WarehouseFormPage } from '../WarehouseFormPage'
 import { WarehousesPage } from '../WarehousesPage'
 
 vi.mock('../../api/reference-catalogs-api', () => ({
@@ -57,7 +60,9 @@ vi.mock('../../api/logistics-api', () => ({
     warehouses: {
       listByBranch: vi.fn(),
       get: vi.fn(),
+      getById: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
       changeStatus: vi.fn(),
       setDefault: vi.fn(),
     },
@@ -174,7 +179,15 @@ function renderPage(ui: ReactElement) {
       <MemoryRouter>
         <LogisticsAuthorizationContext.Provider value={authorization()}>
           <LogisticsAccessContext.Provider value={access()}>
-            {ui}
+            <Routes>
+              <Route path="/logistics/organizations/new" element={<OrganizationFormPage />} />
+              <Route path="/logistics/organizations/:organizationId/edit" element={<OrganizationFormPage />} />
+              <Route path="/logistics/branches/new" element={<BranchFormPage />} />
+              <Route path="/logistics/branches/:branchId/edit" element={<BranchFormPage />} />
+              <Route path="/logistics/warehouses/new" element={<WarehouseFormPage />} />
+              <Route path="/logistics/warehouses/:warehouseId/edit" element={<WarehouseFormPage />} />
+              <Route path="*" element={ui} />
+            </Routes>
           </LogisticsAccessContext.Provider>
         </LogisticsAuthorizationContext.Provider>
       </MemoryRouter>
@@ -185,15 +198,21 @@ function renderPage(ui: ReactElement) {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(logisticsApi.organizations.list).mockResolvedValue(page([ORG_A, ORG_B]))
+  vi.mocked(logisticsApi.organizations.get).mockImplementation(async (id) =>
+    id === ORG_B.id ? ORG_B : ORG_A,
+  )
   vi.mocked(logisticsApi.organizations.branches).mockResolvedValue(page([BRANCH]))
   vi.mocked(logisticsApi.organizations.update).mockResolvedValue(ORG_A)
   vi.mocked(logisticsApi.organizations.changeStatus).mockResolvedValue(ORG_A)
   vi.mocked(logisticsApi.branches.create).mockResolvedValue(BRANCH)
+  vi.mocked(logisticsApi.branches.get).mockResolvedValue(BRANCH)
   vi.mocked(logisticsApi.branches.update).mockResolvedValue(BRANCH)
   vi.mocked(logisticsApi.branches.changeStatus).mockResolvedValue(BRANCH)
   vi.mocked(logisticsApi.warehouses.listByBranch).mockResolvedValue(page([WAREHOUSE]))
   vi.mocked(logisticsApi.warehouses.create).mockResolvedValue(WAREHOUSE)
   vi.mocked(logisticsApi.warehouses.get).mockResolvedValue(WAREHOUSE)
+  vi.mocked(logisticsApi.warehouses.getById).mockResolvedValue(WAREHOUSE)
+  vi.mocked(logisticsApi.warehouses.update).mockResolvedValue(WAREHOUSE)
 })
 
 // ---------------------------------------------------------------------------
@@ -212,7 +231,7 @@ describe('OrganizationsPage', () => {
     renderPage(<OrganizationsPage />)
     await screen.findByText('Organización B')
 
-    const rowB = screen.getByText('Organización B').closest('tr') as HTMLElement
+    const rowB = (await screen.findByText('Organización B')).closest('tr') as HTMLElement
     await user.click(within(rowB).getByRole('button', { name: 'Editar' }))
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
 
@@ -235,7 +254,7 @@ describe('OrganizationsPage', () => {
     await user.click(within(rowA).getByRole('button', { name: 'Editar' }))
     await user.click(screen.getByRole('button', { name: 'Cancelar' }))
 
-    const rowB = screen.getByText('Organización B').closest('tr') as HTMLElement
+    const rowB = (await screen.findByText('Organización B')).closest('tr') as HTMLElement
     await user.click(within(rowB).getByRole('button', { name: 'Desactivar' }))
 
     await waitFor(() =>
@@ -365,7 +384,7 @@ describe('WarehousesPage', () => {
     await user.click(screen.getByRole('button', { name: 'Nuevo almacén' }))
     // F005.1: ni código ni geografía manual; la ubicación sale de la sede.
     await user.type(screen.getByLabelText('Nombre'), 'Almacén UAT F004')
-    await user.type(screen.getByLabelText('Dirección / referencia'), 'Nave B')
+    await user.type(screen.getByLabelText('Dirección / referencia del almacén'), 'Nave B')
     await user.click(screen.getByRole('button', { name: 'Crear almacén' }))
 
     await waitFor(() => expect(logisticsApi.warehouses.create).toHaveBeenCalled())
@@ -381,9 +400,7 @@ describe('WarehousesPage', () => {
     expect(body).not.toHaveProperty('district')
   })
 
-  it('muestra el error de creación dentro del diálogo, no detrás del modal', async () => {
-    // Un 409 de código duplicado se renderizaba en el Alert de la página, que queda
-    // tapado por el modal: el usuario veía el formulario intacto y ningún motivo.
+  it('muestra el error de creación dentro de la página dedicada', async () => {
     const user = userEvent.setup()
     vi.mocked(logisticsApi.warehouses.create).mockRejectedValue(
       new ApiRequestError('El código de almacén ya existe en esta sede.', {
@@ -398,12 +415,9 @@ describe('WarehousesPage', () => {
     await user.type(screen.getByLabelText('Nombre'), 'Duplicado')
     await user.click(screen.getByRole('button', { name: 'Crear almacén' }))
 
-    const dialog = await screen.findByRole('dialog')
-    expect(
-      await within(dialog).findByText(/El código de almacén ya existe/),
-    ).toBeInTheDocument()
-    // Y el diálogo sigue abierto para poder corregir.
-    expect(within(dialog).getByLabelText('Nombre')).toBeInTheDocument()
+    expect(await screen.findByText(/El código de almacén ya existe/)).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Nombre')).toBeInTheDocument()
   })
 
   it('explica el vacío cuando la sede no tiene almacenes', async () => {

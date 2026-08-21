@@ -5,6 +5,7 @@ import { Alert } from '../components/common/Alert'
 import { Button } from '../components/common/Button'
 import { PageHeader } from '../components/common/PageHeader'
 import { StatusBadge } from '../components/common/StatusBadge'
+import { LocationMap } from '../components/logistics/LocationMap'
 import { WarehouseLocationTree } from '../components/warehouses/WarehouseLocationTree'
 import { WarehouseLocationDetailPanel } from '../components/warehouses/WarehouseLocationDetailPanel'
 import { WarehouseLocationGenerationWizard } from '../components/warehouses/WarehouseLocationGenerationWizard'
@@ -13,10 +14,9 @@ import type { Warehouse, WarehouseLocationTreeNode } from '../types/warehouse-mo
 import { getErrorMessage } from '../utils/errors'
 
 type DetailTab =
-  | 'summary'
   | 'locations'
   | 'map'
-  | 'history'
+  | 'summary'
 
 export function WarehouseDetailPage() {
   const { warehouseId } = useParams<{ warehouseId: string }>()
@@ -64,16 +64,16 @@ export function WarehouseDetailPage() {
   if (!warehouseId) return null
 
   return (
-    <div className="page">
+    <div className="w-full space-y-3.5">
       {warehouse && (
         <PageHeader
           eyebrow={`Sede: ${warehouse.branch_name || 'Principal'} · Tipo: ${warehouse.warehouse_type}`}
           title={`${warehouse.name} (${warehouse.code})`}
-          description={warehouse.address_text}
+          description={warehouse.address ?? warehouse.address_text ?? undefined}
           actions={
             <div className="flex items-center gap-2">
               <StatusBadge value={warehouse.status.toLowerCase()}>{warehouse.status}</StatusBadge>
-              {warehouse.capabilities.can_bulk_create && (
+              {warehouse.capabilities?.can_bulk_create && (
                 <Button size="small" onClick={() => setIsWizardOpen(true)}>
                   Generación Masiva
                 </Button>
@@ -86,36 +86,55 @@ export function WarehouseDetailPage() {
       {error && <Alert variant="error">{error}</Alert>}
 
       {isLoading ? (
-        <div className="loading-panel">
+        <div className="flex min-h-[220px] flex-col items-center justify-center gap-2 text-xs text-slate-500">
           <span className="spinner" />
           <p>Cargando detalles y estructura del almacén…</p>
         </div>
       ) : warehouse ? (
-        <section className="panel operations-section space-y-4">
-          {/* Métricas sin Ocupación o Stock Falso */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <span className="font-semibold text-slate-400 text-[10px] uppercase block">Ubicaciones Totales</span>
-              <span className="font-mono text-lg font-bold text-slate-900">{warehouse.total_locations}</span>
+        <div className="w-full space-y-3.5">
+          {/* Métricas compactas */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="rounded-lg border border-slate-200/90 bg-white p-2.5 shadow-xs">
+              <span className="font-semibold text-slate-400 text-[10px] uppercase tracking-wider block">
+                Ubicaciones Totales
+              </span>
+              <span className="font-mono text-base font-bold text-slate-900 mt-0.5 block">
+                {warehouse.total_locations ?? '—'}
+              </span>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <span className="font-semibold text-slate-400 text-[10px] uppercase block">Ubicaciones Activas</span>
-              <span className="font-mono text-lg font-bold text-emerald-700">{warehouse.active_locations}</span>
+
+            <div className="rounded-lg border border-slate-200/90 bg-white p-2.5 shadow-xs">
+              <span className="font-semibold text-slate-400 text-[10px] uppercase tracking-wider block">
+                Ubicaciones Activas
+              </span>
+              <span className="font-mono text-base font-bold text-emerald-700 mt-0.5 block">
+                {warehouse.active_locations ?? '—'}
+              </span>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <span className="font-semibold text-slate-400 text-[10px] uppercase block">Ubicaciones Bloqueadas</span>
-              <span className="font-mono text-lg font-bold text-rose-700">{warehouse.blocked_locations}</span>
+
+            <div className="rounded-lg border border-slate-200/90 bg-white p-2.5 shadow-xs">
+              <span className="font-semibold text-slate-400 text-[10px] uppercase tracking-wider block">
+                Ubicaciones Bloqueadas
+              </span>
+              <span className="font-mono text-base font-bold text-rose-700 mt-0.5 block">
+                {warehouse.blocked_locations ?? '—'}
+              </span>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <span className="font-semibold text-slate-400 text-[10px] uppercase block">Versión Layout Activo</span>
-              <span className="font-mono text-lg font-bold text-blue-700">
-                {warehouse.active_layout_version ? `v${warehouse.active_layout_version}` : 'DRAFT'}
+
+            <div className="rounded-lg border border-slate-200/90 bg-white p-2.5 shadow-xs">
+              <span className="font-semibold text-slate-400 text-[10px] uppercase tracking-wider block">
+                Versión Layout
+              </span>
+              <span className="font-mono text-base font-bold text-primary mt-0.5 block">
+                {warehouse.active_layout_version != null
+                  ? `v${warehouse.active_layout_version}`
+                  : warehouse.layout_status ?? 'Sin dato'}
               </span>
             </div>
           </div>
 
           {/* Navegación por pestañas */}
-          <div className="tabs border-b border-slate-200 pb-2">
+          <div className="flex items-center gap-1 border-b border-slate-200 pb-0 overflow-x-auto">
             {[
               { id: 'locations', label: 'Estructura & Ubicaciones' },
               { id: 'map', label: 'Mapa Lógico 2D' },
@@ -124,22 +143,28 @@ export function WarehouseDetailPage() {
               <button
                 key={t.id}
                 type="button"
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                className={`relative px-3 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 ${
                   activeTab === t.id
-                    ? 'bg-blue-700 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    ? 'text-primary'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 rounded-md'
                 }`}
                 onClick={() => setTab(t.id as DetailTab)}
               >
                 {t.label}
+                {activeTab === t.id && (
+                  <span
+                    className="absolute inset-x-0 bottom-0 h-0.5 bg-primary rounded-t"
+                    aria-hidden="true"
+                  />
+                )}
               </button>
             ))}
           </div>
 
           {/* Contenido activo */}
-          <div className="pt-2">
+          <div className="pt-1">
             {activeTab === 'locations' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
                 <WarehouseLocationTree
                   warehouseId={warehouse.id}
                   selectedLocationId={selectedLocation?.id || null}
@@ -155,20 +180,63 @@ export function WarehouseDetailPage() {
             {activeTab === 'map' && <WarehouseLogicalMapPage warehouseId={warehouse.id} />}
 
             {activeTab === 'summary' && (
-              <div className="space-y-3 text-xs text-slate-700">
-                <p>
-                  <strong>Cross-docking:</strong> {warehouse.is_inventory_enabled ? 'Habilitado' : 'No'}
-                </p>
-                <p>
-                  <strong>Control de Temperatura:</strong> {warehouse.has_temperature_control ? 'Sí' : 'No'}
-                </p>
-                <p>
-                  <strong>Materiales Peligrosos (HAZMAT):</strong> {warehouse.has_hazmat ? 'Sí' : 'No'}
-                </p>
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,1fr)]">
+              <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-2.5 text-xs text-slate-700">
+                <div className="flex items-center justify-between py-1 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Cross-docking:</span>
+                  <span className="font-semibold text-slate-900">
+                    {(warehouse.is_inventory_enabled ?? warehouse.inventory_enabled) == null
+                      ? 'Sin dato'
+                      : (warehouse.is_inventory_enabled ?? warehouse.inventory_enabled)
+                        ? 'Habilitado'
+                        : 'Deshabilitado'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Control de Temperatura:</span>
+                  <span className="font-semibold text-slate-900">
+                    {(warehouse.has_temperature_control ?? warehouse.temperature_controlled) == null
+                      ? 'Sin dato'
+                      : (warehouse.has_temperature_control ?? warehouse.temperature_controlled)
+                        ? 'Sí'
+                        : 'No'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-slate-500 font-medium">Materiales Peligrosos (HAZMAT):</span>
+                  <span className="font-semibold text-slate-900">
+                    {(warehouse.has_hazmat ?? warehouse.hazardous_materials_allowed) == null
+                      ? 'Sin dato'
+                      : (warehouse.has_hazmat ?? warehouse.hazardous_materials_allowed)
+                        ? 'Sí'
+                        : 'No'}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-slate-900">Ubicación geográfica</span>
+                  <span className="text-slate-500">
+                    Origen: {warehouse.location_source === 'WAREHOUSE' ? 'Almacén' : 'Sede'}
+                  </span>
+                </div>
+                <LocationMap
+                  latitude={warehouse.effective_latitude}
+                  longitude={warehouse.effective_longitude}
+                  addressText={warehouse.address ?? warehouse.address_text}
+                  isConfirmed={
+                    warehouse.effective_latitude != null &&
+                    warehouse.effective_longitude != null
+                  }
+                  interactive={false}
+                  height={360}
+                  ariaLabel="Mapa de ubicación efectiva del almacén"
+                />
+              </div>
               </div>
             )}
           </div>
-        </section>
+        </div>
       ) : null}
 
       <WarehouseLocationGenerationWizard

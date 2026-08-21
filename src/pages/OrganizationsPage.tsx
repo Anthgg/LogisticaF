@@ -1,34 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { logisticsApi } from '../api/logistics-api'
 import { Alert } from '../components/common/Alert'
 import { Button } from '../components/common/Button'
-import { Input } from '../components/common/Input'
-import { CountrySelect, TimezoneSelect } from '../components/logistics/CatalogSelects'
-import { EntityCodeField } from '../components/logistics/EntityCodeField'
 import { OperationsTable, type TableColumn } from '../components/common/OperationsTable'
-import { PageHeader } from '../components/common/PageHeader'
 import { Pagination } from '../components/common/Pagination'
 import { QueryBar } from '../components/common/QueryBar'
-import { ResourceDialog } from '../components/common/ResourceDialog'
 import { StatusBadge } from '../components/common/StatusBadge'
 import { PermissionGate } from '../components/logistics/PermissionGate'
 import { useLogisticsAccess } from '../features/logistics-me/hooks/useLogisticsAccess'
 import { LOGISTICS_PERMISSIONS } from '../features/logistics-permissions/logistics-permissions-map'
 import type {
   OrganizationResponse,
-  OrganizationCreate,
   PaginatedResponse,
 } from '../types/logistics-resources'
 import { getErrorMessage } from '../utils/errors'
 
-const emptyForm: OrganizationCreate = {
-  // Sin `code`: lo genera el backend. Enviar '' no es lo mismo que omitirlo.
-  name: '',
-  country_code: 'PE',
-  timezone: 'America/Lima',
-}
-
 export function OrganizationsPage() {
+  const navigate = useNavigate()
   const access = useLogisticsAccess()
   const canCreate = access.hasPermission(LOGISTICS_PERMISSIONS.organizations.create)
   const canUpdate = access.hasPermission(LOGISTICS_PERMISSIONS.organizations.update)
@@ -46,9 +35,6 @@ export function OrganizationsPage() {
   })
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [form, setForm] = useState<OrganizationCreate>(emptyForm)
-  const [editing, setEditing] = useState<OrganizationResponse | null>(null)
-  const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -69,41 +55,6 @@ export function OrganizationsPage() {
     const timer = window.setTimeout(() => void load(), 250)
     return () => window.clearTimeout(timer)
   }, [load])
-
-  const openEdit = (org?: OrganizationResponse) => {
-    setEditing(org ?? null)
-    setForm(
-      org
-        ? {
-            name: org.name,
-            country_code: org.country_code,
-            timezone: org.timezone,
-          }
-        : emptyForm,
-    )
-    setIsOpen(true)
-  }
-
-  const save = async () => {
-    setIsSaving(true)
-    try {
-      if (editing) {
-        await logisticsApi.organizations.update(editing.id, {
-          name: form.name,
-          country_code: form.country_code,
-          timezone: form.timezone,
-        })
-      } else {
-        await logisticsApi.organizations.create(form)
-      }
-      setIsOpen(false)
-      await load()
-    } catch (caught: unknown) {
-      setError(getErrorMessage(caught))
-    } finally {
-      setIsSaving(false)
-    }
-  }
 
   const toggleStatus = async (org: OrganizationResponse) => {
     setIsSaving(true)
@@ -126,21 +77,25 @@ export function OrganizationsPage() {
       key: 'name',
       label: 'Organización',
       render: (row) => (
-        <div className="table-primary">
-          <strong>{row.name}</strong>
-          <small>{row.code}</small>
+        <div className="flex flex-col min-w-0">
+          <strong className="font-semibold text-slate-900 text-xs truncate">{row.name}</strong>
+          <span className="font-mono text-[10px] text-slate-400 mt-0.5">{row.code}</span>
         </div>
       ),
     },
     {
       key: 'country_code',
       label: 'País',
-      render: (row) => row.country_code,
+      render: (row) => (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 font-mono text-[11px] font-medium text-slate-700">
+          {row.country_code}
+        </span>
+      ),
     },
     {
       key: 'timezone',
       label: 'Zona horaria',
-      render: (row) => row.timezone,
+      render: (row) => <span className="text-slate-600 text-xs">{row.timezone}</span>,
     },
     {
       key: 'status',
@@ -157,9 +112,13 @@ export function OrganizationsPage() {
       align: 'right',
       render: (row) =>
         canManage && (
-          <div className="table-actions">
+          <div className="flex items-center justify-end gap-1">
             {canUpdate && (
-              <Button size="small" variant="ghost" onClick={() => openEdit(row)}>
+              <Button
+                size="small"
+                variant="ghost"
+                onClick={() => navigate(`/logistics/organizations/${row.id}/edit`)}
+              >
                 Editar
               </Button>
             )}
@@ -167,6 +126,12 @@ export function OrganizationsPage() {
               <Button
                 size="small"
                 variant="ghost"
+                disabled={isSaving}
+                className={
+                  row.status === 'active'
+                    ? 'text-rose-600 hover:text-rose-700 hover:bg-rose-50'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }
                 onClick={() => void toggleStatus(row)}
               >
                 {row.status === 'active' ? 'Desactivar' : 'Activar'}
@@ -177,82 +142,51 @@ export function OrganizationsPage() {
     },
   ]
 
-  const updateText = (key: 'name', value: string) =>
-    setForm((current) => ({ ...current, [key]: value }))
-
   return (
-    <div className="page">
-      <PageHeader
-        eyebrow="Estructura organizacional"
-        title="Organizaciones"
-        description="Gestiona las organizaciones de la red logística."
-        actions={
-          <PermissionGate permission={LOGISTICS_PERMISSIONS.organizations.create}>
-            <Button onClick={() => openEdit()}>Nueva organización</Button>
-          </PermissionGate>
-        }
-      />
+    <div className="w-full space-y-3">
       {error && <Alert variant="error">{error}</Alert>}
-      <section className="panel operations-section">
+
+      <div className="w-full">
         <QueryBar
           search={search}
+          placeholder="Buscar por nombre o código…"
           onSearch={(value) => {
             setSearch(value)
             setPage(1)
           }}
-        />
+        >
+          <PermissionGate permission={LOGISTICS_PERMISSIONS.organizations.create}>
+            <Button onClick={() => navigate('/logistics/organizations/new')}>
+              Nueva organización
+            </Button>
+          </PermissionGate>
+        </QueryBar>
+
         {isLoading ? (
-          <div className="loading-panel">
+          <div className="flex min-h-[220px] flex-col items-center justify-center gap-2 text-xs text-slate-500">
             <span className="spinner" />
             <p>Cargando organizaciones…</p>
           </div>
         ) : (
-          <OperationsTable
-            rows={data.items}
-            columns={columns}
-            getRowKey={(row) => row.id}
-          />
+          <div className="rounded-lg border border-slate-200/90 bg-white overflow-hidden shadow-xs">
+            <OperationsTable
+              rows={data.items}
+              columns={columns}
+              getRowKey={(row) => row.id}
+              emptyMessage="No se encontraron organizaciones registradas."
+            />
+          </div>
         )}
+
         <Pagination
           page={data.page}
           totalPages={data.total_pages}
           total={data.total}
+          pageSize={data.page_size}
           onPageChange={setPage}
         />
-      </section>
-      <ResourceDialog
-        isOpen={isOpen}
-        title={editing ? 'Editar organización' : 'Nueva organización'}
-        submitLabel={editing ? 'Guardar cambios' : 'Crear organización'}
-        isSubmitting={isSaving}
-        onClose={() => setIsOpen(false)}
-        onSubmit={() => void save()}
-      >
-        {/* El Alert de la página queda detrás del modal. */}
-        {error && <Alert variant="error">{error}</Alert>}
-        <div className="form-grid">
-          <EntityCodeField code={editing?.code ?? null} />
-          <Input
-            label="Nombre"
-            value={form.name}
-            onChange={(e) => updateText('name', e.target.value)}
-            required
-          />
-          <CountrySelect
-            value={form.country_code}
-            onChange={(code) =>
-              setForm((current) => ({ ...current, country_code: code }))
-            }
-            disabled={isSaving}
-          />
-          <TimezoneSelect
-            value={form.timezone}
-            countryCode={form.country_code}
-            onChange={(code) => setForm((current) => ({ ...current, timezone: code }))}
-            disabled={isSaving}
-          />
-        </div>
-      </ResourceDialog>
+      </div>
+
     </div>
   )
 }

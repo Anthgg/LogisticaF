@@ -6,7 +6,7 @@ import { ErrorState, StatusPill, TableSkeleton, EmptyState } from './ui/SharedSt
 import { Modal } from './ui/Overlay'
 import { DecimalInput } from './ui/DecimalInput'
 import { useSensitiveActionGuard } from '../../logistics-permissions/hooks/useSensitiveActionGuard'
-import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
+import { UNPUBLISHED_OPERATIONS } from '../../logistics-permissions/unpublished-operations'
 
 export function EvaluationOverridesPanel({
   evaluationId,
@@ -32,7 +32,7 @@ export function EvaluationOverridesPanel({
   const [submitting, setSubmitting] = useState(false)
 
   const guard = useSensitiveActionGuard({
-    permission: LOGISTICS_PERMISSIONS.supplierEvaluations.requestOverride,
+    permission: UNPUBLISHED_OPERATIONS.evaluationScoreOverride,
   })
 
   const load = useCallback(async () => {

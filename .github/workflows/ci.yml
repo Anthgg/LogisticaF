@@ -54,7 +54,12 @@ jobs:
       - name: Run API Contract Audit
         run: npm run contract:audit
 
-      # Trinquete: los codigos de permiso que el backend no conoce no pueden crecer.
+      # El contrato tipado se genera desde el catalogo del backend: si alguien lo
+      # edita a mano o el catalogo cambia sin regenerar, esto falla.
+      - name: Check Generated Permission Contract
+        run: npm run permissions:contract:check
+
+      # Cero codigos de permiso que el backend no conozca. Ya no es un trinquete.
       - name: Run Permission Contract Audit
         run: npm run permissions:audit
 

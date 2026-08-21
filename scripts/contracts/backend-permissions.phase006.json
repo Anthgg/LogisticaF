@@ -1,6 +1,6 @@
 {
-  "_comment": "Artefacto DERIVADO del catalogo canonico del backend (rbac/permission_catalog.py), exportado por backend/scripts/audit_permission_catalog.py --export. No editar a mano.",
-  "backend_sha": "b381e5311c6dbae04e6185612054ba36bbae91b2",
+  "_comment": "Artefacto DERIVADO del catalogo canonico del backend (rbac/permission_catalog.py), generado por backend/scripts/generate_permission_contract.py. No editar a mano.",
+  "backend_sha": "abea8bd932d0f781d03124ca98384bb49d4cebfb",
   "catalog_version": "1.2.0",
   "permissions": [
     {

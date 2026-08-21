@@ -8,7 +8,7 @@ import type {
 import { ErrorState, StatusPill, TableSkeleton, EmptyState } from './ui/SharedState'
 import { Modal } from './ui/Overlay'
 import { useSensitiveActionGuard } from '../../logistics-permissions/hooks/useSensitiveActionGuard'
-import { LOGISTICS_PERMISSIONS } from '../../logistics-permissions/logistics-permissions-map'
+import { UNPUBLISHED_OPERATIONS } from '../../logistics-permissions/unpublished-operations'
 
 export function CandidateDisqualificationPanel({
   evaluationId,
@@ -31,7 +31,7 @@ export function CandidateDisqualificationPanel({
   const [submitting, setSubmitting] = useState(false)
 
   const guard = useSensitiveActionGuard({
-    permission: LOGISTICS_PERMISSIONS.supplierEvaluations.disqualify,
+    permission: UNPUBLISHED_OPERATIONS.evaluationDisqualification,
   })
 
   const load = useCallback(async () => {

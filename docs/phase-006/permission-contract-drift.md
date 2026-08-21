@@ -1,5 +1,17 @@
 # Deriva entre el mapa de permisos del frontend y el catálogo del backend
 
+> **Resuelto en F006 PR 3.1.** `UNKNOWN_PERMISSION_CODES = 0` y `UNKNOWN_CODES_IN_USE = 0`.
+> Este documento queda como registro de lo que se encontró; la reconciliación está en
+> [permission-contract-reconciliation.md](permission-contract-reconciliation.md).
+>
+> **Una conclusión de aquí resultó equivocada.** Este documento afirmaba que
+> `supplier_evaluations`, `quality_sampling_plans` y `quality_tolerances` eran dominios
+> que el backend nunca definió, y que resolverlos exigía añadir permisos al catálogo. Los
+> tres existen, con otro nombre: `quotation_evaluations.*`,
+> `supplier_evaluation_templates.*`, `quality_plan.*_sampling` y `quality_plan.*_tolerance`.
+> El error fue buscar por prefijo del dominio en lugar de por el endpoint que llama cada
+> pantalla. No hizo falta crear ningún permiso: `BACKEND_PERMISSIONS_CREATED = 0`.
+
 `node scripts/audit-permission-contract.mjs`
 
 ## Qué mide

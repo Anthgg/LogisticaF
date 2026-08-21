@@ -22,6 +22,17 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const CATALOG = join(ROOT, 'scripts', 'contracts', 'backend-permissions.phase006.json')
 const OUT = join(ROOT, 'src', 'features', 'logistics-permissions', 'generated', 'permission-codes.ts')
 
+/**
+ * Normaliza los finales de línea antes de comparar.
+ *
+ * En Windows git entrega el fichero con CRLF y el generador escribe LF, así que una
+ * comparación literal marcaba deriva en cada equipo Windows aunque el contrato fuese
+ * idéntico. En CI (Linux) pasaba, que es la peor forma de tener este fallo.
+ */
+function normalize(text) {
+  return text === null ? null : text.replace(/\r\n/g, '\n')
+}
+
 const catalog = JSON.parse(await readFile(CATALOG, 'utf8'))
 const codes = [...new Set(catalog.permissions.map((p) => p.code))].sort()
 
@@ -47,7 +58,7 @@ export const BACKEND_PERMISSION_COUNT = ${codes.length}
 
 if (process.argv.includes('--check')) {
   const current = await readFile(OUT, 'utf8').catch(() => null)
-  if (current !== content) {
+  if (normalize(current) !== normalize(content)) {
     console.error(
       'GENERATED_PERMISSION_CONTRACT_DRIFT=1\n' +
         'El contrato generado no corresponde al catálogo vendorizado.\n' +

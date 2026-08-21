@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { apiRequest } from './api-client'
+import {
+  ACCESS_DENIED_CODE,
+  apiRequest,
+  isAccessDeniedError,
+  isStepUpError,
+} from './api-client'
 import { API_ROOT, API_URL } from './config'
 import { clearCsrfToken } from './csrf'
 import {
@@ -483,5 +488,66 @@ describe('apiRequest', () => {
       apiRequest({ path: '/auth/login', method: 'POST' }),
     ).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' })
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('apiRequest - 401 frente a 403', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    clearCsrfToken()
+    resetUnauthorizedNotification()
+  })
+
+  it('conserva el código que envía el backend en un 403', async () => {
+    const fetchMock = createFetchMock()
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Sin permiso.' } },
+        403,
+      ),
+    )
+
+    const error = await apiRequest({ path: '/logistics/warehouses' }).catch((e) => e)
+    expect(error).toBeInstanceOf(ApiRequestError)
+    expect((error as ApiRequestError).code).toBe(ACCESS_DENIED_CODE)
+    expect(isAccessDeniedError(error)).toBe(true)
+    expect(isStepUpError(error)).toBe(false)
+  })
+
+  it('distingue el step-up de la denegación simple, aunque ambos sean 403', async () => {
+    const fetchMock = createFetchMock()
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        {
+          success: false,
+          error: { code: 'STEP_UP_REQUIRED', message: 'Verificación reforzada.' },
+        },
+        403,
+      ),
+    )
+
+    const error = await apiRequest({ path: '/logistics/warehouses' }).catch((e) => e)
+    expect(isStepUpError(error)).toBe(true)
+    expect(isAccessDeniedError(error)).toBe(false)
+  })
+
+  it('un 403 sin código propio ya no llega como HTTP_403 anónimo', async () => {
+    const fetchMock = createFetchMock()
+    fetchMock.mockResolvedValue(jsonResponse({ detail: 'Sin permiso.' }, 403))
+
+    const error = await apiRequest({ path: '/logistics/warehouses' }).catch((e) => e)
+    expect((error as ApiRequestError).code).toBe(ACCESS_DENIED_CODE)
+  })
+
+  it('un 401 sigue siendo un problema de sesión, no de permisos', async () => {
+    const fetchMock = createFetchMock()
+    fetchMock.mockResolvedValue(jsonResponse({ detail: 'No autenticado.' }, 401))
+
+    const error = await apiRequest({
+      path: '/logistics/warehouses',
+      skipAuthRefresh: true,
+    }).catch((e) => e)
+    expect((error as ApiRequestError).code).toBe('SESSION_REQUIRED')
+    expect(isAccessDeniedError(error)).toBe(false)
   })
 })

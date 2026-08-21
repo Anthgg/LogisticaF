@@ -225,18 +225,28 @@ export function LogisticsAuthorizationProvider({
 
   const hasGlobal = useMemo(() => hasGlobalScope(roles), [roles])
 
+  /**
+   * Un permiso se tiene o no se tiene: pertenencia exacta al conjunto efectivo.
+   *
+   * Antes empezaba concediendo todo cuando `hasGlobal` era cierto, o cuando el
+   * conjunto contenía `*`, `admin` o `ALL`. Las tres cadenas comodín no existen en el
+   * catálogo del backend —555 permisos, ninguno comodín—, así que nunca casaban; pero
+   * `hasGlobal` sí, y significa otra cosa: que alguna asignación tiene ámbito global,
+   * es decir que **no está acotada a una organización**. Ámbito no es conjunto de
+   * permisos. Un rol personalizado estrecho asignado con ámbito global obtenía así
+   * todos los permisos de la interfaz.
+   *
+   * El efecto era anular todo lo construido encima: cada `PermissionGate`, cada guard
+   * de ruta y cada filtro de navegación devolvían `true`. El backend seguía negando
+   * —la seguridad real está allí— así que el usuario veía botones que respondían 403.
+   * Es el mismo bypass que F006 PR 1 retiró del backend, reaparecido en el cliente.
+   *
+   * `hasGlobal` sigue usándose para el ámbito (`canAccessOrganization` y compañía),
+   * donde sí es la semántica correcta.
+   */
   const checkPermissionMatch = useCallback(
-    (code: string): boolean => {
-      if (hasGlobal || permissions.has('*') || permissions.has('admin') || permissions.has('ALL')) return true
-      if (permissions.has(code)) return true
-      const parts = code.split('.')
-      while (parts.length > 1) {
-        parts.pop()
-        if (permissions.has(`${parts.join('.')}.*`)) return true
-      }
-      return false
-    },
-    [hasGlobal, permissions],
+    (code: string): boolean => permissions.has(code),
+    [permissions],
   )
 
   const hasPermission = useCallback(

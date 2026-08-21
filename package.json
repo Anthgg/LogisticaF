@@ -15,7 +15,8 @@
     "e2e": "playwright test",
     "e2e:install": "playwright install chromium",
     "contract:audit": "node scripts/audit-api-contract.mjs",
-    "contract:manifest": "node scripts/generate-contract-manifest.mjs"
+    "contract:manifest": "node scripts/generate-contract-manifest.mjs",
+    "permissions:audit": "node scripts/audit-permission-contract.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",

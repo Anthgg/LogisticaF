@@ -54,5 +54,9 @@ jobs:
       - name: Run API Contract Audit
         run: npm run contract:audit
 
+      # Trinquete: los codigos de permiso que el backend no conoce no pueden crecer.
+      - name: Run Permission Contract Audit
+        run: npm run permissions:audit
+
       - name: Build
         run: npm run build

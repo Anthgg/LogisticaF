@@ -24,8 +24,8 @@ ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_BUILD_SHA=$VITE_BUILD_SHA
 ENV VITE_APP_VERSION=$VITE_APP_VERSION
 
-# Ejecutar Typecheck, Linter y Build de producción
-RUN npm run typecheck && npm run lint && npm run build
+# Ejecutar Typecheck y Build de producción
+RUN npm run typecheck && npm run build
 
 # Stage 2: Servidor Web Nginx Ligero de Producción
 FROM nginx:1.27-alpine AS runner

@@ -1,0 +1,246 @@
+name: Frontend Production Deployment Pipeline
+
+# Pipeline canónico de despliegue productivo del Frontend (Fase 006).
+#
+# Construye desde el commit indicado en main, ejecuta la batería de validaciones
+# (typecheck, lint, vitest, auditorías de contrato y permisos), construye la imagen
+# Docker multi-stage con servidor Nginx optimizado, resuelve el digest inmutable
+# y despliega a Cloud Run sin tráfico inicial. Tras superar las comprobaciones de salud,
+# promueve el tráfico al 100% de manera controlada.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'SHA de main a desplegar (vacío = el SHA de esta ejecución)'
+        required: false
+        type: string
+      promote_traffic:
+        description: 'Enviar el 100% del tráfico a la revisión nueva tras verificarla'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: gen-lang-client-0356667380
+  GCP_REGION: southamerica-west1
+  SERVICE_NAME: logistica-web
+  ARTIFACT_REPO: cloud-run-source-deploy
+
+concurrency:
+  group: frontend-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build & deploy frontend to Cloud Run (production)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve target commit
+        id: target
+        run: |
+          set -euo pipefail
+          SHA="${{ inputs.commit_sha }}"
+          if [ -z "$SHA" ]; then SHA="${{ github.sha }}"; fi
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "short=${SHA:0:12}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies (clean reproducible)
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit & Integration Tests (Vitest)
+        run: npm test -- --run
+
+      - name: API Contract Audit
+        run: npm run contract:audit
+
+      - name: Permission Contract Audit
+        run: npm run permissions:audit
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Record current production revision
+        id: before
+        run: |
+          set -euo pipefail
+          if gcloud run services describe "${{ env.SERVICE_NAME }}" --project="${{ env.GCP_PROJECT_ID }}" --region="${{ env.GCP_REGION }}" >/dev/null 2>&1; then
+            PREV="$(gcloud run services describe "${{ env.SERVICE_NAME }}" \
+              --project="${{ env.GCP_PROJECT_ID }}" --region="${{ env.GCP_REGION }}" \
+              --format='value(status.traffic.filter("percent:100").extract("revisionName"))' \
+              | tr -d "[]' ")"
+            echo "revision=${PREV:-NONE}" >> "$GITHUB_OUTPUT"
+            echo "Revisión actual: ${PREV:-NONE}"
+          else
+            echo "revision=NONE" >> "$GITHUB_OUTPUT"
+            echo "Primer despliegue del servicio; sin revisión previa."
+          fi
+
+      - name: Build and push image
+        id: build
+        run: |
+          set -euo pipefail
+          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.SERVICE_NAME }}:${{ steps.target.outputs.short }}"
+          gcloud builds submit \
+            --project="${{ env.GCP_PROJECT_ID }}" \
+            --tag="$IMAGE" \
+            --timeout=1800s
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve immutable digest
+        id: digest
+        run: |
+          set -euo pipefail
+          DIGEST="$(gcloud artifacts docker images describe "${{ steps.build.outputs.image }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" \
+            --format='value(image_summary.digest)')"
+          BASE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.SERVICE_NAME }}"
+          echo "ref=${BASE}@${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "Digest: ${DIGEST}"
+
+      - name: Deploy new revision (no traffic)
+        id: deploy
+        run: |
+          set -euo pipefail
+          gcloud run deploy "${{ env.SERVICE_NAME }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" \
+            --region="${{ env.GCP_REGION }}" \
+            --image="${{ steps.digest.outputs.ref }}" \
+            --revision-suffix="sha-${{ steps.target.outputs.short }}" \
+            --port=8080 \
+            --allow-unauthenticated \
+            --no-traffic \
+            --quiet
+
+          REV="$(gcloud run services describe "${{ env.SERVICE_NAME }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" --region="${{ env.GCP_REGION }}" \
+            --format='value(status.latestCreatedRevisionName)')"
+          echo "revision=${REV}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify revision is ready
+        run: |
+          set -euo pipefail
+          READY="$(gcloud run revisions describe "${{ steps.deploy.outputs.revision }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" --region="${{ env.GCP_REGION }}" \
+            --format='value(status.conditions.filter("type=Ready").extract("status").flatten())')"
+          READY="$(printf '%s' "$READY" | tr -d "[]' \r")"
+          echo "Ready=${READY}"
+          if [ "$READY" != "True" ]; then
+            echo "FAIL: la revisión no quedó lista." >&2
+            exit 1
+          fi
+
+      - name: Tag revision for pre-promotion health check
+        run: |
+          set -euo pipefail
+          gcloud run services update-traffic "${{ env.SERVICE_NAME }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" --region="${{ env.GCP_REGION }}" \
+            --set-tags="candidate=${{ steps.deploy.outputs.revision }}" \
+            --quiet
+
+      - name: Health check on the candidate revision
+        run: |
+          set -euo pipefail
+          CANDIDATE_URL="$(gcloud run services describe "${{ env.SERVICE_NAME }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" --region="${{ env.GCP_REGION }}" \
+            --format='value(status.traffic.filter("tag:candidate").extract("url"))' \
+            | tr -d "[]' ")"
+          echo "Candidate URL: ${CANDIDATE_URL}"
+
+          # Health probe
+          CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "${CANDIDATE_URL}/health")"
+          echo "/health -> ${CODE}"
+          if [ "$CODE" != "200" ]; then
+            echo "FAIL: /health devolvió ${CODE}." >&2
+            exit 1
+          fi
+
+          # Root HTML probe
+          CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "${CANDIDATE_URL}/")"
+          echo "/ -> ${CODE}"
+          if [ "$CODE" != "200" ]; then
+            echo "FAIL: / devolvió ${CODE}." >&2
+            exit 1
+          fi
+
+      - name: Promote traffic
+        if: ${{ inputs.promote_traffic }}
+        run: |
+          set -euo pipefail
+          gcloud run services update-traffic "${{ env.SERVICE_NAME }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" --region="${{ env.GCP_REGION }}" \
+            --to-revisions="${{ steps.deploy.outputs.revision }}=100" \
+            --quiet
+
+      - name: Verify production after promotion
+        if: ${{ inputs.promote_traffic }}
+        run: |
+          set -euo pipefail
+          URL="$(gcloud run services describe "${{ env.SERVICE_NAME }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" --region="${{ env.GCP_REGION }}" \
+            --format='value(status.url)')"
+
+          for path in / /login /health; do
+            CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "${URL}${path}")"
+            echo "${path} -> ${CODE}"
+            if [ "$CODE" != "200" ]; then
+              echo "FAIL: ${path} devolvió ${CODE}." >&2
+              exit 1
+            fi
+          done
+
+      - name: Rollback traffic on failure
+        if: failure() && steps.before.outputs.revision != '' && steps.before.outputs.revision != 'NONE'
+        run: |
+          set -euo pipefail
+          echo "Revirtiendo tráfico a ${{ steps.before.outputs.revision }}"
+          gcloud run services update-traffic "${{ env.SERVICE_NAME }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" --region="${{ env.GCP_REGION }}" \
+            --to-revisions="${{ steps.before.outputs.revision }}=100" \
+            --quiet
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          {
+            echo "### Despliegue de producción (Frontend)"
+            echo ""
+            echo "| Campo | Valor |"
+            echo "| --- | --- |"
+            echo "| Commit | ${{ steps.target.outputs.sha }} |"
+            echo "| Imagen | ${{ steps.build.outputs.image }} |"
+            echo "| Digest | ${{ steps.digest.outputs.digest }} |"
+            echo "| Revisión nueva | ${{ steps.deploy.outputs.revision }} |"
+            echo "| Revisión anterior | ${{ steps.before.outputs.revision }} |"
+            echo "| Tráfico promovido | ${{ inputs.promote_traffic }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

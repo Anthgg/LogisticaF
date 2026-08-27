@@ -142,15 +142,28 @@ jobs:
         id: deploy
         run: |
           set -euo pipefail
-          gcloud run deploy "${{ env.SERVICE_NAME }}" \
-            --project="${{ env.GCP_PROJECT_ID }}" \
-            --region="${{ env.GCP_REGION }}" \
-            --image="${{ steps.digest.outputs.ref }}" \
-            --revision-suffix="sha-${{ steps.target.outputs.short }}" \
-            --port=8080 \
-            --allow-unauthenticated \
-            --no-traffic \
-            --quiet
+          if [ "${{ steps.before.outputs.revision }}" = "NONE" ]; then
+            echo "Primer despliegue del servicio: creando servicio inicial..."
+            gcloud run deploy "${{ env.SERVICE_NAME }}" \
+              --project="${{ env.GCP_PROJECT_ID }}" \
+              --region="${{ env.GCP_REGION }}" \
+              --image="${{ steps.digest.outputs.ref }}" \
+              --revision-suffix="sha-${{ steps.target.outputs.short }}" \
+              --port=8080 \
+              --allow-unauthenticated \
+              --quiet
+          else
+            echo "Servicio existente: desplegando nueva revisión sin tráfico inicial..."
+            gcloud run deploy "${{ env.SERVICE_NAME }}" \
+              --project="${{ env.GCP_PROJECT_ID }}" \
+              --region="${{ env.GCP_REGION }}" \
+              --image="${{ steps.digest.outputs.ref }}" \
+              --revision-suffix="sha-${{ steps.target.outputs.short }}" \
+              --port=8080 \
+              --allow-unauthenticated \
+              --no-traffic \
+              --quiet
+          fi
 
           REV="$(gcloud run services describe "${{ env.SERVICE_NAME }}" \
             --project="${{ env.GCP_PROJECT_ID }}" --region="${{ env.GCP_REGION }}" \

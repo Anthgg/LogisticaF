@@ -190,7 +190,10 @@ describe('InstitutionalDocumentPreview Component (Fase 021)', () => {
     const user = userEvent.setup()
     render(<InstitutionalDocumentPreview />)
 
-    await waitFor(() => expect(mockedApi.listAddresses).toHaveBeenCalled())
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /Sede Sur/i })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: /Dra\. María Ramos/i })).toBeInTheDocument()
+    })
 
     // Seleccionar sede Sur
     const branchSelect = screen.getByLabelText(/Sede Operativa/i)

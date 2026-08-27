@@ -317,10 +317,52 @@ export interface AuditEventSummaryResponse {
   severity: string
   resource_type: string | null
   resource_id: string | null
+  resource_code?: string | null
   organization_id: string | null
   branch_id: string | null
   warehouse_id: string | null
+  ip_address?: string | null
   occurred_at: string
+}
+
+export interface AuditEventDetailResponse extends AuditEventSummaryResponse {
+  event_version?: string
+  actor_type?: string | null
+  actor_role_codes_snapshot?: string | null
+  session_id?: string | null
+  device_id?: string | null
+  authentication_level?: string | null
+  risk_score?: number | null
+  step_up_required?: boolean
+  step_up_result?: string | null
+  request_id?: string | null
+  correlation_id?: string | null
+  method?: string | null
+  endpoint?: string | null
+  user_agent?: string | null
+  origin?: string | null
+  parent_resource_type?: string | null
+  parent_resource_id?: string | null
+  reason_code?: string | null
+  reason_text?: string | null
+  previous_data?: Record<string, unknown> | null
+  new_data?: Record<string, unknown> | null
+  changed_fields?: string[] | null
+  metadata?: Record<string, unknown> | null
+  source_module?: string | null
+  source_service?: string | null
+  schema_version?: string
+  event_hash?: string | null
+  created_at?: string
+}
+
+export interface IntegrityCheckResponse {
+  success: boolean
+  valid: boolean
+  event_id: string
+  stored_hash: string
+  computed_hash: string
+  checked_at: string
 }
 
 export interface PermissionResponse {
@@ -365,10 +407,16 @@ export interface ListQuery {
 
 export interface AuditEventListQuery extends ListQuery {
   event_code?: string | null
+  category?: string | null
   severity?: string | null
+  result?: string | null
+  action?: string | null
   resource_type?: string | null
+  resource_id?: string | null
   actor_user_id?: string | null
   organization_id?: string | null
+  correlation_id?: string | null
+  request_id?: string | null
   start_date?: string | null
   end_date?: string | null
 }

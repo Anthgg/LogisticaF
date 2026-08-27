@@ -1,7 +1,9 @@
-import { apiRequest } from './api-client'
+import { apiRequest, apiResponseRequest } from './api-client'
 import type {
+  AuditEventDetailResponse,
   AuditEventListQuery,
   AuditEventSummaryResponse,
+  IntegrityCheckResponse,
   BranchCreate,
   BranchResponse,
   BranchStatusUpdate,
@@ -171,5 +173,23 @@ export const logisticsApi = {
       apiRequest<PaginatedResponse<AuditEventSummaryResponse>>({
         path: `/logistics/audit-events${buildQuery(query as Record<string, unknown>)}`,
       }),
+    get: (id: string) =>
+      apiRequest<AuditEventDetailResponse>({
+        path: `/logistics/audit-events/${id}`,
+      }),
+    verifyIntegrity: (id: string) =>
+      apiRequest<IntegrityCheckResponse>({
+        path: `/logistics/audit-events/${id}/verify-integrity`,
+        method: 'POST',
+      }),
+    exportCsv: (query: AuditEventListQuery = {}) =>
+      apiResponseRequest(
+        {
+          path: `/logistics/audit-events/export${buildQuery(query as Record<string, unknown>)}`,
+        },
+        async (response) => {
+          return await response.blob()
+        },
+      ),
   },
 }

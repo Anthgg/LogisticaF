@@ -59,6 +59,7 @@ export const LOGISTICS_PERMISSIONS = {
   },
   audit: {
     read: 'logistics.audit.read',
+    export: 'logistics.audit.export',
     readSensitive: 'logistics.audit.read_sensitive',
   },
   receptionAppointments: {

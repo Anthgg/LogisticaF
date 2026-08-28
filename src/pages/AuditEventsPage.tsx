@@ -227,7 +227,7 @@ export function AuditEventsPage() {
         <PageHeader
           eyebrow="Auditoría"
           title="Eventos de auditoría"
-          description="Registro unificado e inmutable de operaciones del sistema logístico."
+          description="Registro unificado de operaciones del sistema logístico."
         />
         <Alert variant="error">No tienes permisos para consultar eventos de auditoría.</Alert>
       </div>
@@ -242,7 +242,7 @@ export function AuditEventsPage() {
         <PageHeader
           eyebrow="Auditoría Unificada"
           title="Eventos de auditoría"
-          description="Trazabilidad completa, diffs Before/After, verificación criptográfica SHA-256 y exportación segura."
+          description="Trazabilidad completa, diffs Before/After, verificación de integridad mediante hash SHA-256 y exportación segura."
         />
         {canExport && (
           <div className="flex items-center gap-2">

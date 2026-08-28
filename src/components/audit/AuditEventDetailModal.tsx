@@ -140,7 +140,7 @@ export function AuditEventDetailModal({
           {isLoading && (
             <div className="flex flex-col items-center justify-center py-12 text-gray-500">
               <span className="spinner mb-2" />
-              <p className="text-sm">Obteniendo registro inmutable de auditoría…</p>
+              <p className="text-sm">Obteniendo evento de auditoría…</p>
             </div>
           )}
 
@@ -309,7 +309,7 @@ export function AuditEventDetailModal({
                 )}
               </div>
 
-              {/* Cryptographic Integrity Verification Section */}
+              {/* Event Hash Integrity Verification Section */}
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
@@ -317,10 +317,10 @@ export function AuditEventDetailModal({
                       <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                       </svg>
-                      Verificación Criptográfica de Integridad (SHA-256)
+                      Verificación de integridad (SHA-256)
                     </h3>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Comprueba que el evento no haya sufrido alteraciones o manipulaciones directas en la base de datos.
+                      La verificación compara el hash SHA-256 almacenado con el hash calculado a partir del contenido actual del evento.
                     </p>
                   </div>
                   <Button
@@ -353,11 +353,13 @@ export function AuditEventDetailModal({
                     <div>
                       <span className="font-bold block">
                         {integrityResult.valid
-                          ? '✓ INTEGRIDAD VERIFICADA: Registro inmutable intacto'
-                          : '✗ ERROR DE INTEGRIDAD: El hash almacenado no coincide con el contenido'}
+                          ? '✓ Integridad verificada'
+                          : '⚠ La integridad del evento no pudo verificarse'}
                       </span>
                       <span className="text-[11px] opacity-80">
-                        Verificado en: {new Date(integrityResult.checked_at).toLocaleString('es-PE')}
+                        {integrityResult.valid
+                          ? 'El hash almacenado coincide con el contenido actual del evento.'
+                          : 'El hash almacenado no coincide con el contenido actual del evento.'}
                       </span>
                     </div>
                     <span className="font-mono text-xs font-bold px-2 py-1 bg-white/60 dark:bg-black/30 rounded">
